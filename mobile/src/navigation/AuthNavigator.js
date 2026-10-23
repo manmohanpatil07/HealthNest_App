@@ -1,0 +1,37 @@
+import React from 'react';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+import LoginScreen from '../screens/auth/LoginScreen';
+import RegisterScreen from '../screens/auth/RegisterScreen';
+import OTPVerificationScreen from '../screens/auth/OTPVerificationScreen';
+
+const Stack = createNativeStackNavigator();
+
+export default function AuthNavigator() {
+  return (
+    <Stack.Navigator
+      initialRouteName="Login"
+      screenOptions={{
+        headerStyle: { backgroundColor: '#0284C7' },
+        headerTintColor: '#FFFFFF',
+        headerTitleStyle: { fontWeight: 'bold' },
+      }}
+    >
+      <Stack.Screen 
+        name="Login" 
+        component={LoginScreen} 
+        options={{ title: 'HealthNest Login' }} 
+      />
+      <Stack.Screen 
+        name="Register" 
+        component={RegisterScreen} 
+        options={{ title: 'Register Account' }} 
+      />
+      <Stack.Screen 
+        name="OTPVerification" 
+        component={OTPVerificationScreen} 
+        options={{ title: 'Verify OTP' }} 
+      />
+    </Stack.Navigator>
+  );
+}
