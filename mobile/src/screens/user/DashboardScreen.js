@@ -206,55 +206,49 @@ export default function DashboardScreen({ navigation }) {
               </View>
 
               {recentRecords.length > 0 ? (
-                recentRecords.map((rec) => (
-                  <View key={rec.record_id} style={styles.recordCard}>
-                    <View style={styles.recordIconCircle}>
-                      <Text style={{ fontSize: 20 }}>
-                        {rec.record_type === 'Blood Test' ? '🩸' : '💊'}
-                      </Text>
-                    </View>
-                    <View style={styles.recordInfo}>
-                      <Text style={styles.recordCategory}>{rec.record_type}</Text>
-                      <Text style={styles.recordTitle}>{rec.title}</Text>
-                      <Text style={styles.recordDate}>
-                        {rec.record_date ? rec.record_date.substring(0, 10) : ''}
-                      </Text>
-                    </View>
-                    <View style={styles.savedBadge}>
-                      <Text style={styles.savedBadgeText}>Saved</Text>
-                    </View>
-                  </View>
-                ))
+                recentRecords.map((rec) => {
+                  const getIcon = (type) => {
+                    switch (type) {
+                      case 'Blood Test': return '🩸';
+                      case 'Prescription': return '💊';
+                      case 'Consultation': return '👨‍⚕️';
+                      case 'Radiology': return '🔬';
+                      default: return '📋';
+                    }
+                  };
+                  return (
+                    <TouchableOpacity
+                      key={rec.record_id}
+                      style={styles.recordCard}
+                      onPress={() => navigation.navigate('HealthRecords')}
+                    >
+                      <View style={styles.recordIconCircle}>
+                        <Text style={{ fontSize: 20 }}>{getIcon(rec.record_type)}</Text>
+                      </View>
+                      <View style={styles.recordInfo}>
+                        <Text style={styles.recordCategory}>{rec.record_type}</Text>
+                        <Text style={styles.recordTitle}>{rec.title}</Text>
+                        <Text style={styles.recordDate}>
+                          {rec.record_date ? new Date(rec.record_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                        </Text>
+                      </View>
+                      <View style={styles.savedBadge}>
+                        <Text style={styles.savedBadgeText}>Saved</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
               ) : (
-                <>
-                  <View style={styles.recordCard}>
-                    <View style={styles.recordIconCircle}>
-                      <Text style={{ fontSize: 20 }}>🩸</Text>
-                    </View>
-                    <View style={styles.recordInfo}>
-                      <Text style={styles.recordCategory}>Blood Test</Text>
-                      <Text style={styles.recordTitle}>CBC & LFT</Text>
-                      <Text style={styles.recordDate}>22 Sep 2026</Text>
-                    </View>
-                    <View style={styles.savedBadge}>
-                      <Text style={styles.savedBadgeText}>Saved</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.recordCard}>
-                    <View style={styles.recordIconCircle}>
-                      <Text style={{ fontSize: 20 }}>💊</Text>
-                    </View>
-                    <View style={styles.recordInfo}>
-                      <Text style={styles.recordCategory}>Prescription</Text>
-                      <Text style={styles.recordTitle}>Fever & Cold</Text>
-                      <Text style={styles.recordDate}>18 Sep 2026</Text>
-                    </View>
-                    <View style={styles.savedBadge}>
-                      <Text style={styles.savedBadgeText}>Saved</Text>
-                    </View>
-                  </View>
-                </>
+                <View style={[styles.recordCard, { justifyContent: 'center', alignItems: 'center', paddingVertical: 20 }]}>
+                  <Text style={{ fontSize: 28, marginBottom: 6 }}>📋</Text>
+                  <Text style={{ fontSize: 14, color: '#64748B', fontWeight: '500' }}>No health records yet</Text>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('HealthRecords')}
+                    style={{ marginTop: 8 }}
+                  >
+                    <Text style={{ color: '#0284C7', fontWeight: '700', fontSize: 13 }}>+ Add your first record</Text>
+                  </TouchableOpacity>
+                </View>
               )}
 
               {/* QR CTA Card per Section 22 */}

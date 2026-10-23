@@ -19,9 +19,10 @@ app.get('/api/health', (req, res) => {
 });
 
 // Auth Routes
-const { authRoutes, userRoutes } = require('./routes');
+const { authRoutes, userRoutes, healthRecordRoutes } = require('./routes');
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/health-records', healthRecordRoutes);
 
 // Root route
 app.get('/', (req, res) => {
