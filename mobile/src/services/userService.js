@@ -118,6 +118,33 @@ export const userService = {
   deleteVaccination: async (vaccinationId) => {
     const response = await api.delete(`/vaccinations/${vaccinationId}`);
     return response.data;
+  },
+
+  // ──────────────────────── QR Health Card ────────────────────────
+
+  /**
+   * Get active QR access token and card data
+   */
+  getQRCode: async () => {
+    const response = await api.get('/qr');
+    return response.data;
+  },
+
+  /**
+   * Regenerate QR code (invalidates previous token)
+   */
+  regenerateQR: async () => {
+    const response = await api.post('/qr/regenerate');
+    return response.data;
+  },
+
+  /**
+   * Update permissions for active QR
+   * @param {string} permission (e.g. 'view', 'full', or comma-delimited options)
+   */
+  updateQRPermissions: async (permission) => {
+    const response = await api.put('/qr/permissions', { permission });
+    return response.data;
   }
 };
 
