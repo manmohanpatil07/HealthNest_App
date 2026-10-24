@@ -18,11 +18,18 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Auth Routes
-const { authRoutes, userRoutes, healthRecordRoutes } = require('./routes');
+const path = require('path');
+
+// Static file serving for uploads (cloud/file storage)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Routes
+const { authRoutes, userRoutes, healthRecordRoutes, documentRoutes, vaccinationRoutes } = require('./routes');
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/health-records', healthRecordRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/vaccinations', vaccinationRoutes);
 
 // Root route
 app.get('/', (req, res) => {

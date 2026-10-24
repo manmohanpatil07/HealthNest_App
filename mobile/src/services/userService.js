@@ -51,6 +51,73 @@ export const userService = {
   deleteHealthRecord: async (recordId) => {
     const response = await api.delete(`/health-records/${recordId}`);
     return response.data;
+  },
+
+  // ──────────────────────── Documents ────────────────────────
+
+  /**
+   * List all documents for authenticated user
+   */
+  getDocuments: async () => {
+    const response = await api.get('/documents');
+    return response.data;
+  },
+
+  /**
+   * Upload a document file (multipart/form-data)
+   * @param {FormData} formData
+   * @param {(progress: number) => void} onProgress
+   */
+  uploadDocument: async (formData, onProgress) => {
+    const response = await api.post('/documents/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total && onProgress) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percentCompleted);
+        }
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Delete a document by id
+   * @param {number} documentId
+   */
+  deleteDocument: async (documentId) => {
+    const response = await api.delete(`/documents/${documentId}`);
+    return response.data;
+  },
+
+  // ──────────────────────── Vaccinations ────────────────────────
+
+  /**
+   * List all vaccination records for authenticated user
+   */
+  getVaccinations: async () => {
+    const response = await api.get('/vaccinations');
+    return response.data;
+  },
+
+  /**
+   * Add a new vaccination record
+   * @param {{ vaccine_name: string, vaccination_date: string, next_due_date?: string, notes?: string }} data
+   */
+  createVaccination: async (data) => {
+    const response = await api.post('/vaccinations', data);
+    return response.data;
+  },
+
+  /**
+   * Delete a vaccination record by id
+   * @param {number} vaccinationId
+   */
+  deleteVaccination: async (vaccinationId) => {
+    const response = await api.delete(`/vaccinations/${vaccinationId}`);
+    return response.data;
   }
 };
 

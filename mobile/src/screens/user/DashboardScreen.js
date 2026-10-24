@@ -166,7 +166,11 @@ export default function DashboardScreen({ navigation }) {
               </View>
 
               {upcomingVaccine ? (
-                <View style={styles.upcomingVaccineCard}>
+                <TouchableOpacity
+                  style={styles.upcomingVaccineCard}
+                  onPress={() => navigation.navigate('Vaccination')}
+                  activeOpacity={0.8}
+                >
                   <View style={styles.upcomingLeftIcon}>
                     <Text style={{ fontSize: 22 }}>💉</Text>
                   </View>
@@ -174,27 +178,31 @@ export default function DashboardScreen({ navigation }) {
                     <Text style={styles.upcomingTag}>Vaccination Due</Text>
                     <Text style={styles.upcomingName}>{upcomingVaccine.vaccine_name}</Text>
                     <Text style={styles.upcomingDate}>
-                      Due: {upcomingVaccine.next_due_date ? upcomingVaccine.next_due_date.substring(0, 10) : 'Upcoming'}
+                      Due: {upcomingVaccine.next_due_date ? new Date(upcomingVaccine.next_due_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Upcoming'}
                     </Text>
                   </View>
                   <View style={styles.warningBadge}>
                     <Text style={styles.warningBadgeText}>Upcoming</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ) : (
-                <View style={styles.upcomingVaccineCard}>
-                  <View style={styles.upcomingLeftIcon}>
+                <TouchableOpacity
+                  style={[styles.upcomingVaccineCard, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }]}
+                  onPress={() => navigation.navigate('Vaccination')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.upcomingLeftIcon, { backgroundColor: '#F1F5F9' }]}>
                     <Text style={{ fontSize: 22 }}>💉</Text>
                   </View>
                   <View style={styles.upcomingDetails}>
-                    <Text style={styles.upcomingTag}>Vaccination Due</Text>
-                    <Text style={styles.upcomingName}>Influenza (Flu) Vaccine</Text>
-                    <Text style={styles.upcomingDate}>Due: 15 Oct 2026</Text>
+                    <Text style={[styles.upcomingTag, { color: '#64748B' }]}>Vaccination Schedule</Text>
+                    <Text style={[styles.upcomingName, { color: '#334155' }]}>No upcoming vaccines due</Text>
+                    <Text style={styles.upcomingDate}>Tap to record past or future doses</Text>
                   </View>
-                  <View style={styles.warningBadge}>
-                    <Text style={styles.warningBadgeText}>3 days</Text>
+                  <View style={[styles.warningBadge, { backgroundColor: '#E2E8F0' }]}>
+                    <Text style={[styles.warningBadgeText, { color: '#64748B' }]}>Track</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               )}
 
               {/* Recent Records Section per Section 22 */}
