@@ -156,31 +156,59 @@ const providerController = {
         });
       }
 
-      // Validate token – check expiry and permission
+      // 1. Look up the token in qr_access
       const [qrRows] = await pool.execute(
         `SELECT
           access_id,
           user_id,
           provider_id,
+          access_token,
           permission,
           expires_at,
           created_at
         FROM qr_access
         WHERE access_token = ?
-          AND permission = 'view'
-          AND (expires_at IS NULL OR expires_at > NOW())
         LIMIT 1`,
         [access_token.trim()]
       );
 
       if (!qrRows.length) {
-        return res.status(403).json({
+        return res.status(404).json({
           success: false,
-          message: 'QR code is invalid, expired, or unauthorized'
+          errorCode: 'INVALID_QR',
+          message: 'This does not appear to be a valid HealthNest QR code. Please try again.'
         });
       }
 
       const qrRecord = qrRows[0];
+
+      // 2. Check token expiration
+      if (qrRecord.expires_at && new Date(qrRecord.expires_at) < new Date()) {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'EXPIRED_QR',
+          message: 'This QR code has expired. Ask the patient to regenerate their QR code from the HealthNest app.'
+        });
+      }
+
+      // 3. Check permission
+      if (qrRecord.permission !== 'view') {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'UNAUTHORIZED_ACCESS',
+          message: 'Access revoked or unauthorized. View permission is required.'
+        });
+      }
+
+      // 4. Check provider relationship if assigned
+      if (qrRecord.provider_id && qrRecord.provider_id !== providerId) {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'UNAUTHORIZED_PROVIDER',
+          message: 'This QR code was issued for a different healthcare provider.'
+        });
+      }
+
       const authorizedUserId = qrRecord.user_id;
 
       // Fetch patient profile (safe fields)
