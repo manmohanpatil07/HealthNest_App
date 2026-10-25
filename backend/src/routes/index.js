@@ -4,6 +4,7 @@ const healthRecordRoutes = require('./healthRecordRoutes');
 const documentRoutes = require('./documentRoutes');
 const vaccinationRoutes = require('./vaccinationRoutes');
 const qrRoutes = require('./qrRoutes');
+const providerRoutes = require('./providerRoutes');
 
 module.exports = {
   authRoutes,
@@ -11,5 +12,6 @@ module.exports = {
   healthRecordRoutes,
   documentRoutes,
   vaccinationRoutes,
-  qrRoutes
+  qrRoutes,
+  providerRoutes
 };

@@ -24,13 +24,14 @@ const path = require('path');
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Routes
-const { authRoutes, userRoutes, healthRecordRoutes, documentRoutes, vaccinationRoutes, qrRoutes } = require('./routes');
+const { authRoutes, userRoutes, healthRecordRoutes, documentRoutes, vaccinationRoutes, qrRoutes, providerRoutes } = require('./routes');
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/health-records', healthRecordRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/vaccinations', vaccinationRoutes);
 app.use('/api/qr', qrRoutes);
+app.use('/api/provider', providerRoutes);
 
 // Root route
 app.get('/', (req, res) => {

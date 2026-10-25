@@ -145,9 +145,7 @@ export default function LoginScreen({ navigation }) {
             <AppButton
               title="Provider Login"
               variant="secondary"
-              onPress={() => {
-                // Keep provider separate
-              }}
+              onPress={() => navigation.navigate('ProviderLogin')}
             />
           </View>
         </View>
