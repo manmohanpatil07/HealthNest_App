@@ -8,4 +8,8 @@
  * - qrService.js
  * - hospitalService.js
  */
-module.exports = {};
+const hospitalService = require('./hospitalService');
+
+module.exports = {
+  hospitalService
+};

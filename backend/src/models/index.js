@@ -4,6 +4,7 @@ const HealthRecord = require('./HealthRecord');
 const Document = require('./Document');
 const Vaccination = require('./Vaccination');
 const QRAccess = require('./QRAccess');
+const Hospital = require('./Hospital');
 
 module.exports = {
   User,
@@ -11,6 +12,7 @@ module.exports = {
   HealthRecord,
   Document,
   Vaccination,
-  QRAccess
+  QRAccess,
+  Hospital
 };
 
