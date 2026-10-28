@@ -9,6 +9,7 @@
     "expo": "~57.0.31",
     "expo-camera": "~57.0.6",
     "expo-document-picker": "~57.0.3",
+    "expo-location": "~57.0.22",
     "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
