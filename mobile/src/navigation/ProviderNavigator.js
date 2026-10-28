@@ -11,7 +11,7 @@ export default function ProviderNavigator() {
   return (
     <Stack.Navigator
       initialRouteName="ProviderDashboard"
-      screenOptions={{
+      screenOptions={{ headerShown: false,
         headerStyle: { backgroundColor: '#0D9488' },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontWeight: 'bold' },

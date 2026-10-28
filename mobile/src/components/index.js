@@ -12,6 +12,9 @@ import HospitalSearchBar from './HospitalSearchBar';
 import HospitalFilter from './HospitalFilter';
 import LocationButton from './LocationButton';
 import DistanceBadge from './DistanceBadge';
+import HospitalDetailsCard from './HospitalDetailsCard';
+import CallButton from './CallButton';
+import DirectionsButton from './DirectionsButton';
 
 export {
   AppButton,
@@ -28,6 +31,9 @@ export {
   HospitalFilter,
   LocationButton,
   DistanceBadge,
+  HospitalDetailsCard,
+  CallButton,
+  DirectionsButton,
 };
 
 export default {
@@ -45,4 +51,7 @@ export default {
   HospitalFilter,
   LocationButton,
   DistanceBadge,
+  HospitalDetailsCard,
+  CallButton,
+  DirectionsButton,
 };

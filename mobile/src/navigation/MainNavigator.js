@@ -25,7 +25,7 @@ export default function MainNavigator() {
   return (
     <Stack.Navigator
       initialRouteName="Dashboard"
-      screenOptions={{
+      screenOptions={{ headerShown: false,
         headerStyle: { backgroundColor: '#0284C7' },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontWeight: 'bold' },

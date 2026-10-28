@@ -9,7 +9,7 @@ import * as SecureStore from 'expo-secure-store';
  * For Web / Localhost: http://localhost:5000
  */
 // export const API_BASE_URL = 'http://localhost:5000/api'; 
-export const API_BASE_URL = 'http://10.198.50.156:5000/api'; 
+export const API_BASE_URL = 'http://10.49.97.156:5000/api'; 
 
 const TOKEN_KEY = 'healthnest_jwt_token';
 

@@ -48,6 +48,7 @@ export default function HospitalCard({ hospital, onPress }) {
 
           <HospitalStatusBadge
             pmjayStatus={hospital.pmjay_status}
+            verifiedAt={hospital.verified_at}
             hospitalType={hospital.hospital_type}
           />
         </View>
