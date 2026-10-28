@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -25,13 +25,15 @@ export default function ScanQRScreen({ navigation }) {
   const [scanStatus, setScanStatus] = useState('idle'); // 'idle' | 'scanning' | 'verifying' | 'success' | 'invalid' | 'expired' | 'error'
   const [errorMessage, setErrorMessage] = useState('');
   const [hasScanned, setHasScanned] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
 
   // Scanline animation
   const scanLineAnim = useRef(new Animated.Value(0)).current;
+  const scanAnimRef = useRef(null);
 
   useEffect(() => {
-    if (isScanningActive && !hasScanned) {
-      Animated.loop(
+    if (isScanningActive && !hasScanned && cameraReady) {
+      const anim = Animated.loop(
         Animated.sequence([
           Animated.timing(scanLineAnim, {
             toValue: SCAN_FRAME_SIZE - 4,
@@ -44,11 +46,24 @@ export default function ScanQRScreen({ navigation }) {
             useNativeDriver: true,
           }),
         ])
-      ).start();
+      );
+      scanAnimRef.current = anim;
+      anim.start();
     } else {
+      if (scanAnimRef.current) {
+        scanAnimRef.current.stop();
+        scanAnimRef.current = null;
+      }
       scanLineAnim.setValue(0);
     }
-  }, [isScanningActive, hasScanned]);
+
+    return () => {
+      if (scanAnimRef.current) {
+        scanAnimRef.current.stop();
+        scanAnimRef.current = null;
+      }
+    };
+  }, [isScanningActive, hasScanned, cameraReady]);
 
   const handleStartScanning = async () => {
     if (!permission?.granted) {
@@ -82,13 +97,18 @@ export default function ScanQRScreen({ navigation }) {
         return;
       }
     }
+    setCameraReady(false);
     setScanStatus('scanning');
     setHasScanned(false);
     setIsScanningActive(true);
     setErrorMessage('');
   };
 
-  const handleBarCodeScanned = async ({ data }) => {
+  const handleCameraReady = useCallback(() => {
+    setCameraReady(true);
+  }, []);
+
+  const handleBarCodeScanned = useCallback(async ({ data }) => {
     // Prevent duplicate scans while processing
     if (hasScanned || loading) return;
 
@@ -154,14 +174,18 @@ export default function ScanQRScreen({ navigation }) {
         setErrorMessage(message || 'Unable to authorize access. Please check your connection and try again.');
       }
     }
-  };
+  }, [hasScanned, loading, navigation]);
 
   const handleResetScan = () => {
     setHasScanned(false);
     setScanStatus('idle');
     setErrorMessage('');
     setIsScanningActive(false);
+    setCameraReady(false);
   };
+
+  // Determine if the camera component should be rendered
+  const showCamera = permission?.granted && isScanningActive;
 
   return (
     <View style={styles.container}>
@@ -185,15 +209,17 @@ export default function ScanQRScreen({ navigation }) {
 
       {/* Camera / Scanner Frame Container */}
       <View style={styles.scannerWrapper}>
-        {permission?.granted && isScanningActive ? (
+        {/* Layer 1 (bottom): Camera preview OR placeholder — fills the entire scanner area */}
+        {showCamera ? (
           <CameraView
-            style={StyleSheet.absoluteFillObject}
+            style={styles.cameraFill}
             facing="back"
             enableTorch={isTorchOn}
             barcodeScannerSettings={{
               barcodeTypes: ['qr'],
             }}
             onBarcodeScanned={hasScanned ? undefined : handleBarCodeScanned}
+            onCameraReady={handleCameraReady}
           />
         ) : (
           <View style={styles.cameraPlaceholder}>
@@ -206,106 +232,124 @@ export default function ScanQRScreen({ navigation }) {
           </View>
         )}
 
-        {/* Darkened Overlay around viewfinder */}
-        <View style={styles.overlay}>
-          {/* Viewfinder target box */}
-          <View
-            style={[
-              styles.targetFrame,
-              scanStatus === 'success' && styles.targetFrameSuccess,
-              (scanStatus === 'invalid' || scanStatus === 'error') && styles.targetFrameInvalid,
-              scanStatus === 'expired' && styles.targetFrameExpired,
-            ]}
-          >
-            {/* 4 Corner Markers */}
+        {/* Layer 2 (top): Transparent overlay with viewfinder frame — sits above camera */}
+        <View style={styles.overlay} pointerEvents="box-none">
+          {/* Semi-transparent darkened border around the cutout */}
+          {/* Top dark region */}
+          <View style={styles.overlayDarkTop} />
+          {/* Middle row: left dark | transparent cutout | right dark */}
+          <View style={styles.overlayMiddleRow}>
+            <View style={styles.overlayDarkSide} />
+            {/* The transparent viewfinder cutout */}
             <View
               style={[
-                styles.cornerTopLeft,
-                scanStatus === 'success' && styles.cornerSuccess,
-                (scanStatus === 'invalid' || scanStatus === 'error') && styles.cornerInvalid,
-                scanStatus === 'expired' && styles.cornerExpired,
+                styles.targetFrame,
+                scanStatus === 'success' && styles.targetFrameSuccess,
+                (scanStatus === 'invalid' || scanStatus === 'error') && styles.targetFrameInvalid,
+                scanStatus === 'expired' && styles.targetFrameExpired,
               ]}
-            />
-            <View
-              style={[
-                styles.cornerTopRight,
-                scanStatus === 'success' && styles.cornerSuccess,
-                (scanStatus === 'invalid' || scanStatus === 'error') && styles.cornerInvalid,
-                scanStatus === 'expired' && styles.cornerExpired,
-              ]}
-            />
-            <View
-              style={[
-                styles.cornerBottomLeft,
-                scanStatus === 'success' && styles.cornerSuccess,
-                (scanStatus === 'invalid' || scanStatus === 'error') && styles.cornerInvalid,
-                scanStatus === 'expired' && styles.cornerExpired,
-              ]}
-            />
-            <View
-              style={[
-                styles.cornerBottomRight,
-                scanStatus === 'success' && styles.cornerSuccess,
-                (scanStatus === 'invalid' || scanStatus === 'error') && styles.cornerInvalid,
-                scanStatus === 'expired' && styles.cornerExpired,
-              ]}
-            />
-
-            {/* Scanning Line Animation */}
-            {isScanningActive && !hasScanned && (
-              <Animated.View
+            >
+              {/* 4 Corner Markers */}
+              <View
                 style={[
-                  styles.scanLine,
-                  {
-                    transform: [{ translateY: scanLineAnim }],
-                  },
+                  styles.cornerTopLeft,
+                  scanStatus === 'success' && styles.cornerSuccess,
+                  (scanStatus === 'invalid' || scanStatus === 'error') && styles.cornerInvalid,
+                  scanStatus === 'expired' && styles.cornerExpired,
                 ]}
               />
-            )}
+              <View
+                style={[
+                  styles.cornerTopRight,
+                  scanStatus === 'success' && styles.cornerSuccess,
+                  (scanStatus === 'invalid' || scanStatus === 'error') && styles.cornerInvalid,
+                  scanStatus === 'expired' && styles.cornerExpired,
+                ]}
+              />
+              <View
+                style={[
+                  styles.cornerBottomLeft,
+                  scanStatus === 'success' && styles.cornerSuccess,
+                  (scanStatus === 'invalid' || scanStatus === 'error') && styles.cornerInvalid,
+                  scanStatus === 'expired' && styles.cornerExpired,
+                ]}
+              />
+              <View
+                style={[
+                  styles.cornerBottomRight,
+                  scanStatus === 'success' && styles.cornerSuccess,
+                  (scanStatus === 'invalid' || scanStatus === 'error') && styles.cornerInvalid,
+                  scanStatus === 'expired' && styles.cornerExpired,
+                ]}
+              />
 
-            {/* Status indicator inside frame */}
-            {scanStatus === 'idle' && (
-              <View style={styles.frameCenterTextContainer}>
-                <Text style={styles.frameCenterText}>
-                  Position patient's QR code within the frame
-                </Text>
-              </View>
-            )}
+              {/* Scanning Line Animation */}
+              {isScanningActive && !hasScanned && cameraReady && (
+                <Animated.View
+                  style={[
+                    styles.scanLine,
+                    {
+                      transform: [{ translateY: scanLineAnim }],
+                    },
+                  ]}
+                />
+              )}
 
-            {scanStatus === 'verifying' && (
-              <View style={styles.statusIndicatorCenter}>
-                <ActivityIndicator size="large" color="#38BDF8" />
-                <Text style={styles.verifyingText}>Scanning and verifying…</Text>
-              </View>
-            )}
-
-            {scanStatus === 'success' && (
-              <View style={styles.statusIndicatorCenter}>
-                <View style={styles.successCircle}>
-                  <Text style={styles.successCheck}>✓</Text>
+              {/* Status indicator inside frame */}
+              {scanStatus === 'idle' && (
+                <View style={styles.frameCenterTextContainer}>
+                  <Text style={styles.frameCenterText}>
+                    Position patient's QR code within the frame
+                  </Text>
                 </View>
-                <Text style={styles.successText}>QR Verified!</Text>
-              </View>
-            )}
+              )}
 
-            {scanStatus === 'invalid' && (
-              <View style={styles.statusIndicatorCenter}>
-                <View style={styles.invalidCircle}>
-                  <Text style={styles.invalidCross}>✕</Text>
+              {/* Camera loading indicator (camera mounted but not yet ready) */}
+              {showCamera && !cameraReady && scanStatus === 'scanning' && (
+                <View style={styles.statusIndicatorCenter}>
+                  <ActivityIndicator size="large" color="#38BDF8" />
+                  <Text style={styles.verifyingText}>Starting camera…</Text>
                 </View>
-                <Text style={styles.invalidText}>Invalid QR</Text>
-              </View>
-            )}
+              )}
 
-            {scanStatus === 'expired' && (
-              <View style={styles.statusIndicatorCenter}>
-                <View style={styles.expiredCircle}>
-                  <Text style={styles.expiredExclamation}>!</Text>
+              {scanStatus === 'verifying' && (
+                <View style={styles.statusIndicatorCenter}>
+                  <ActivityIndicator size="large" color="#38BDF8" />
+                  <Text style={styles.verifyingText}>Scanning and verifying…</Text>
                 </View>
-                <Text style={styles.expiredText}>QR Code Expired</Text>
-              </View>
-            )}
+              )}
+
+              {scanStatus === 'success' && (
+                <View style={styles.statusIndicatorCenter}>
+                  <View style={styles.successCircle}>
+                    <Text style={styles.successCheck}>✓</Text>
+                  </View>
+                  <Text style={styles.successText}>QR Verified!</Text>
+                </View>
+              )}
+
+              {scanStatus === 'invalid' && (
+                <View style={styles.statusIndicatorCenter}>
+                  <View style={styles.invalidCircle}>
+                    <Text style={styles.invalidCross}>✕</Text>
+                  </View>
+                  <Text style={styles.invalidText}>Invalid QR</Text>
+                </View>
+              )}
+
+              {scanStatus === 'expired' && (
+                <View style={styles.statusIndicatorCenter}>
+                  <View style={styles.expiredCircle}>
+                    <Text style={styles.expiredExclamation}>!</Text>
+                  </View>
+                  <Text style={styles.expiredText}>QR Code Expired</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.overlayDarkSide} />
           </View>
+          {/* Bottom dark region */}
+          <View style={styles.overlayDarkBottom} />
         </View>
       </View>
 
@@ -328,8 +372,17 @@ export default function ScanQRScreen({ navigation }) {
 
         {scanStatus === 'scanning' && (
           <View style={styles.scanningPromptBox}>
-            <ActivityIndicator size="small" color="#0D9488" style={{ marginRight: 8 }} />
-            <Text style={styles.scanningPromptText}>Scanning and verifying…</Text>
+            {cameraReady ? (
+              <>
+                <View style={styles.scanningDot} />
+                <Text style={styles.scanningPromptText}>Camera active — point at QR code</Text>
+              </>
+            ) : (
+              <>
+                <ActivityIndicator size="small" color="#0D9488" style={{ marginRight: 8 }} />
+                <Text style={styles.scanningPromptText}>Initializing camera…</Text>
+              </>
+            )}
           </View>
         )}
 
@@ -440,11 +493,15 @@ const styles = StyleSheet.create({
   flashIcon: {
     fontSize: 18,
   },
+
+  // ── Scanner area ──────────────────────────────────────────────
   scannerWrapper: {
     flex: 1,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  // Camera fills the entire scanner area (positioned absolutely)
+  cameraFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   cameraPlaceholder: {
     ...StyleSheet.absoluteFillObject,
@@ -460,11 +517,29 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 14,
   },
+
+  // ── Overlay (sits on top of camera, provides darkened border + transparent cutout) ──
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
+  overlayDarkTop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+  },
+  overlayMiddleRow: {
+    flexDirection: 'row',
+    height: SCAN_FRAME_SIZE,
+  },
+  overlayDarkSide: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+  },
+  overlayDarkBottom: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+  },
+
+  // ── Target frame (the transparent cutout where the camera shows through) ──
   targetFrame: {
     width: SCAN_FRAME_SIZE,
     height: SCAN_FRAME_SIZE,
@@ -474,6 +549,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
+    // transparent background — lets the camera show through
+    backgroundColor: 'transparent',
   },
   targetFrameSuccess: {
     borderColor: '#22C55E',
@@ -626,6 +703,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+
+  // ── Bottom section ────────────────────────────────────────────
   bottomSection: {
     paddingHorizontal: 24,
     paddingBottom: Platform.OS === 'ios' ? 44 : 28,
@@ -658,6 +737,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     marginBottom: 16,
+  },
+  scanningDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#22C55E',
+    marginRight: 8,
   },
   scanningPromptText: {
     color: '#CCFBF1',
