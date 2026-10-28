@@ -1,15 +1,35 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 /**
  * HealthNest Base Axios Instance
- * Update baseURL to your local machine IP (e.g., http://192.168.1.X:5000)
- * when testing on a physical Android device with Expo Go.
- * For Android Studio Emulator: http://10.0.2.2:5000
- * For Web / Localhost: http://localhost:5000
+ * Automatically detects your computer's IP address when running via Expo Go.
  */
-// export const API_BASE_URL = 'http://localhost:5000/api'; 
-export const API_BASE_URL = 'http://10.49.97.156:5000/api'; 
+const getBaseUrl = () => {
+  // 1. If an explicit environment variable is set, prioritize it
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
+  // 2. In Expo Go / Development, dynamically extract the host machine IP:
+  const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost || Constants.manifest?.debuggerHost;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    return `http://${ip}:5000/api`;
+  }
+
+  // 3. Android Studio Emulator fallback:
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:5000/api';
+  }
+
+  // 4. Default / Physical device fallback IP:
+  return 'http://10.49.97.156:5000/api';
+};
+
+export const API_BASE_URL = getBaseUrl();
 
 const TOKEN_KEY = 'healthnest_jwt_token';
 

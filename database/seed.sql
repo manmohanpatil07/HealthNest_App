@@ -3,8 +3,7 @@
 
 USE healthnest_db;
 
--- Insert sample User (password is 'Password123' bcrypt hash placeholder)
--- $2b$10$e8N8GZ.rC2fO97/N257z3e0H1jJ1Jt2N6Pj0pB1P2gXh5H4/mZ1m.
+-- Insert sample User (password is 'Password123')
 INSERT INTO users (
     user_id, full_name, mobile, email, password_hash, date_of_birth, gender, city, state, blood_group, emergency_contact
 ) VALUES (
@@ -12,7 +11,7 @@ INSERT INTO users (
     'Aarav Sharma',
     '9876543210',
     'aarav.sharma@example.com',
-    '$2b$10$e8N8GZ.rC2fO97/N257z3e0H1jJ1Jt2N6Pj0pB1P2gXh5H4/mZ1m.',
+    '$2b$10$g6lW95ZAWRiHYJKxJRHPlumXJmP9CB7AO27G2dbFtajGsnG4Ysajm',
     '1995-05-15',
     'Male',
     'Mumbai',
@@ -21,7 +20,7 @@ INSERT INTO users (
     '9876543211'
 );
 
--- Insert sample Healthcare Provider
+-- Insert sample Healthcare Provider (password is 'Password123')
 INSERT INTO providers (
     provider_id, full_name, mobile, email, password_hash, provider_type, clinic_name, city, state
 ) VALUES (
@@ -29,7 +28,7 @@ INSERT INTO providers (
     'Dr. Priya Deshmukh',
     '9123456780',
     'dr.priya@example.com',
-    '$2b$10$e8N8GZ.rC2fO97/N257z3e0H1jJ1Jt2N6Pj0pB1P2gXh5H4/mZ1m.',
+    '$2b$10$g6lW95ZAWRiHYJKxJRHPlumXJmP9CB7AO27G2dbFtajGsnG4Ysajm',
     'healthcare_provider',
     'LifeCare Clinic',
     'Mumbai',

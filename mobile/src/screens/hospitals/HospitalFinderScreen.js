@@ -33,7 +33,7 @@ export default function HospitalFinderScreen({ navigation }) {
   // Active Location Coordinates (or null if manual text search only)
   const [currentCoords, setCurrentCoords] = useState(null);
   const [locationDenied, setLocationDenied] = useState(false);
-  const [activeLocationName, setActiveLocationName] = useState('Nearby hospitals in Pune');
+  const [activeLocationName, setActiveLocationName] = useState('All Available Hospitals');
 
   // Fetch hospitals using currently active filters & coordinates
   const fetchHospitals = useCallback(
@@ -137,7 +137,7 @@ export default function HospitalFinderScreen({ navigation }) {
     } else if (currentCoords) {
       setActiveLocationName('Nearby your current location');
     } else {
-      setActiveLocationName('Nearby hospitals in Pune');
+      setActiveLocationName('All Available Hospitals');
     }
     fetchHospitals(currentCoords, searchTerm, pmjayOnly);
   };
@@ -147,7 +147,7 @@ export default function HospitalFinderScreen({ navigation }) {
     if (currentCoords) {
       setActiveLocationName('Nearby your current location');
     } else {
-      setActiveLocationName('Nearby hospitals in Pune');
+      setActiveLocationName('All Available Hospitals');
     }
     fetchHospitals(currentCoords, '', pmjayOnly);
   };
