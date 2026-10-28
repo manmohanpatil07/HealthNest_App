@@ -9,6 +9,7 @@ import {
   Dimensions,
   Platform,
   Alert,
+  Linking,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { providerService } from '../../services/providerService';
@@ -51,6 +52,27 @@ export default function ScanQRScreen({ navigation }) {
 
   const handleStartScanning = async () => {
     if (!permission?.granted) {
+      if (permission && !permission.canAskAgain) {
+        Alert.alert(
+          'Camera Permission Blocked',
+          'Camera permission is permanently denied or unavailable. Please enable camera access in your device settings to scan patient QR codes.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
       const result = await requestPermission();
       if (!result.granted) {
         Alert.alert(
