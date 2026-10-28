@@ -3,10 +3,135 @@ const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
 const Provider = require('../models/Provider');
 
+const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'healthnest_jwt_secret_key_dev_2026';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 const providerController = {
+  /**
+   * Healthcare Provider Registration
+   * POST /api/auth/provider-register
+   */
+  async register(req, res) {
+    try {
+      const {
+        full_name,
+        mobile,
+        email,
+        password,
+        provider_type,
+        clinic_name,
+        city,
+        state
+      } = req.body;
+
+      // Validate required fields
+      if (!full_name || !full_name.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Full Name is required'
+        });
+      }
+
+      if (!mobile || !mobile.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Mobile Number is required'
+        });
+      }
+
+      const cleanMobile = mobile.trim();
+      const mobileRegex = /^[0-9]{10}$/;
+      if (!mobileRegex.test(cleanMobile)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Mobile number must be a valid 10-digit number'
+        });
+      }
+
+      if (!password || password.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: 'Password must be at least 6 characters long'
+        });
+      }
+
+      // Check duplicate mobile in providers
+      const existingProviderByMobile = await Provider.findByMobile(cleanMobile);
+      if (existingProviderByMobile) {
+        return res.status(409).json({
+          success: false,
+          message: 'A provider account with this mobile number already exists'
+        });
+      }
+
+      // Check duplicate email if provided
+      const cleanEmail = email && email.trim() ? email.trim() : null;
+      if (cleanEmail) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(cleanEmail)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid email address format'
+          });
+        }
+
+        const existingProviderByEmail = await Provider.findByEmail(cleanEmail);
+        if (existingProviderByEmail) {
+          return res.status(409).json({
+            success: false,
+            message: 'A provider account with this email address already exists'
+          });
+        }
+      }
+
+      // Hash password using bcrypt
+      const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
+
+      // Insert new provider
+      const providerId = await Provider.create({
+        full_name: full_name.trim(),
+        mobile: cleanMobile,
+        email: cleanEmail,
+        password_hash,
+        provider_type: provider_type && provider_type.trim() ? provider_type.trim() : 'healthcare_provider',
+        clinic_name: clinic_name && clinic_name.trim() ? clinic_name.trim() : null,
+        city: city && city.trim() ? city.trim() : null,
+        state: state && state.trim() ? state.trim() : null
+      });
+
+      // Fetch created provider profile without password_hash
+      const newProvider = await Provider.findById(providerId);
+
+      // Generate JWT with healthcare_provider role
+      const token = jwt.sign(
+        {
+          id: providerId,
+          providerId,
+          role: 'healthcare_provider',
+          mobile: cleanMobile
+        },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: 'Healthcare provider account created successfully',
+        token,
+        role: 'healthcare_provider',
+        userId: providerId,
+        provider: newProvider
+      });
+    } catch (error) {
+      console.error('[providerController.register] Error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error during provider registration. Please try again later.'
+      });
+    }
+  },
+
   /**
    * Provider Login
    * POST /api/auth/provider-login

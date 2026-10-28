@@ -125,6 +125,13 @@ export default function ProviderLoginScreen({ navigation }) {
             loading={loading}
           />
 
+          <View style={styles.providerRegisterRow}>
+            <Text style={styles.userPromptText}>New healthcare provider? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('ProviderRegister')}>
+              <Text style={styles.providerRegisterLink}>Create Provider Account</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.userLoginRow}>
             <Text style={styles.userPromptText}>Looking for patient access? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
@@ -240,11 +247,22 @@ const styles = StyleSheet.create({
   spacer: {
     height: 8,
   },
+  providerRegisterRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  providerRegisterLink: {
+    color: '#0D9488',
+    fontWeight: '700',
+    fontSize: 14,
+  },
   userLoginRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 14,
   },
   userPromptText: {
     color: COLORS.textSecondary,

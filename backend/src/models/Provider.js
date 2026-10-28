@@ -82,6 +82,46 @@ const Provider = {
       [providerId]
     );
     return rows[0] || null;
+  },
+
+  /**
+   * Create new healthcare provider
+   * @param {Object} providerData
+   * @returns {Promise<number>} Inserted provider_id
+   */
+  async create({
+    full_name,
+    mobile,
+    email = null,
+    password_hash,
+    provider_type = 'healthcare_provider',
+    clinic_name = null,
+    city = null,
+    state = null
+  }) {
+    const [result] = await pool.execute(
+      `INSERT INTO providers (
+        full_name,
+        mobile,
+        email,
+        password_hash,
+        provider_type,
+        clinic_name,
+        city,
+        state
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        full_name,
+        mobile,
+        email || null,
+        password_hash,
+        provider_type || 'healthcare_provider',
+        clinic_name || null,
+        city || null,
+        state || null
+      ]
+    );
+    return result.insertId;
   }
 };
 

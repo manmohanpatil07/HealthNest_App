@@ -5,6 +5,7 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import OTPVerificationScreen from '../screens/auth/OTPVerificationScreen';
 import ProviderLoginScreen from '../screens/auth/ProviderLoginScreen';
+import ProviderRegisterScreen from '../screens/auth/ProviderRegisterScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -38,6 +39,14 @@ export default function AuthNavigator() {
         component={ProviderLoginScreen} 
         options={{ 
           title: 'Provider Portal Login',
+          headerStyle: { backgroundColor: '#0D9488' }
+        }} 
+      />
+      <Stack.Screen 
+        name="ProviderRegister" 
+        component={ProviderRegisterScreen} 
+        options={{ 
+          title: 'Register Provider',
           headerStyle: { backgroundColor: '#0D9488' }
         }} 
       />

@@ -6,6 +6,16 @@ import api from './api';
  */
 export const providerService = {
   /**
+   * POST /api/auth/provider-register
+   * Register a new healthcare provider account.
+   * Returns { success, token, role, userId, provider }
+   */
+  register: async (providerData) => {
+    const response = await api.post('/auth/provider-register', providerData);
+    return response.data;
+  },
+
+  /**
    * POST /api/auth/provider-login
    * Authenticate a healthcare provider with mobile/email + password.
    * Returns { success, token, role, userId, provider }
