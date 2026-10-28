@@ -34,6 +34,16 @@ export const providerService = {
     const response = await api.post('/provider/scan-qr', { access_token: accessToken });
     return response.data;
   },
+
+  /**
+   * GET /api/provider/patient/:token
+   * Retrieve authorized patient details by QR access token.
+   * Returns { success, patient, healthRecords, documents, vaccinations, accessInfo }
+   */
+  getPatientByToken: async (accessToken) => {
+    const response = await api.get(`/provider/patient/${encodeURIComponent(accessToken)}`);
+    return response.data;
+  },
 };
 
 export default providerService;

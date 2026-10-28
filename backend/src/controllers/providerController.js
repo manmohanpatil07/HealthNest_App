@@ -295,6 +295,7 @@ const providerController = {
         vaccinations,
         accessInfo: {
           access_id: qrRecord.access_id,
+          access_token: qrRecord.access_token,
           permission: qrRecord.permission,
           expires_at: qrRecord.expires_at
         }
@@ -304,6 +305,176 @@ const providerController = {
       return res.status(500).json({
         success: false,
         message: 'Server error validating QR code. Please try again.'
+      });
+    }
+  },
+
+  /**
+   * Get authorized patient data using validated QR access token
+   * GET /api/provider/patient/:token
+   * Requires JWT with role: 'healthcare_provider'
+   */
+  async getAuthorizedPatient(req, res) {
+    try {
+      const providerId = req.user.providerId || req.user.id;
+      const { token } = req.params;
+
+      if (!token || !token.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Access token parameter is required'
+        });
+      }
+
+      // 1. Look up token in qr_access
+      const [qrRows] = await pool.execute(
+        `SELECT
+          access_id,
+          user_id,
+          provider_id,
+          access_token,
+          permission,
+          expires_at,
+          created_at
+        FROM qr_access
+        WHERE access_token = ?
+        LIMIT 1`,
+        [token.trim()]
+      );
+
+      if (!qrRows.length) {
+        return res.status(404).json({
+          success: false,
+          errorCode: 'INVALID_QR',
+          message: 'This access token is invalid or has expired.'
+        });
+      }
+
+      const qrRecord = qrRows[0];
+
+      // 2. Check token expiration
+      if (qrRecord.expires_at && new Date(qrRecord.expires_at) < new Date()) {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'EXPIRED_QR',
+          message: 'This QR code authorization has expired. Ask the patient to regenerate their QR code.'
+        });
+      }
+
+      // 3. Check permission
+      if (qrRecord.permission !== 'view') {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'UNAUTHORIZED_ACCESS',
+          message: 'Access revoked or unauthorized. View permission is required.'
+        });
+      }
+
+      // 4. Check provider relationship if assigned
+      if (qrRecord.provider_id && qrRecord.provider_id !== providerId) {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'UNAUTHORIZED_PROVIDER',
+          message: 'This QR code was issued for a different healthcare provider.'
+        });
+      }
+
+      const authorizedUserId = qrRecord.user_id;
+
+      // Fetch patient profile
+      const [userRows] = await pool.execute(
+        `SELECT
+          user_id,
+          full_name,
+          mobile,
+          email,
+          date_of_birth,
+          gender,
+          city,
+          state,
+          blood_group,
+          emergency_contact,
+          created_at
+        FROM users
+        WHERE user_id = ?
+        LIMIT 1`,
+        [authorizedUserId]
+      );
+
+      if (!userRows.length) {
+        return res.status(404).json({
+          success: false,
+          message: 'Patient not found'
+        });
+      }
+
+      const patient = userRows[0];
+
+      // Fetch health records (read-only)
+      const [healthRecords] = await pool.execute(
+        `SELECT
+          record_id,
+          user_id,
+          record_type,
+          title,
+          description,
+          record_date,
+          created_at
+        FROM health_records
+        WHERE user_id = ?
+        ORDER BY record_date DESC, created_at DESC`,
+        [authorizedUserId]
+      );
+
+      // Fetch documents (read-only)
+      const [documents] = await pool.execute(
+        `SELECT
+          document_id,
+          user_id,
+          document_type,
+          document_name,
+          file_url,
+          uploaded_at
+        FROM documents
+        WHERE user_id = ?
+        ORDER BY uploaded_at DESC`,
+        [authorizedUserId]
+      );
+
+      // Fetch vaccinations (read-only)
+      const [vaccinations] = await pool.execute(
+        `SELECT
+          vaccination_id,
+          user_id,
+          vaccine_name,
+          vaccination_date,
+          next_due_date,
+          notes,
+          created_at
+        FROM vaccinations
+        WHERE user_id = ?
+        ORDER BY vaccination_date DESC, created_at DESC`,
+        [authorizedUserId]
+      );
+
+      return res.status(200).json({
+        success: true,
+        patient,
+        healthRecords,
+        documents,
+        vaccinations,
+        accessInfo: {
+          access_id: qrRecord.access_id,
+          access_token: qrRecord.access_token,
+          permission: qrRecord.permission,
+          expires_at: qrRecord.expires_at
+        }
+      });
+    } catch (error) {
+      console.error('[providerController.getAuthorizedPatient] Error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error retrieving authorized patient details.'
       });
     }
   }

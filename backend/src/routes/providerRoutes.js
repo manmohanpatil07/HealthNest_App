@@ -13,4 +13,7 @@ router.get('/profile', providerAuth, providerController.getProfile);
 // POST /api/provider/scan-qr – validate a patient QR access token
 router.post('/scan-qr', providerAuth, providerController.scanQR);
 
+// GET /api/provider/patient/:token – get authorized patient data by QR token
+router.get('/patient/:token', providerAuth, providerController.getAuthorizedPatient);
+
 module.exports = router;
