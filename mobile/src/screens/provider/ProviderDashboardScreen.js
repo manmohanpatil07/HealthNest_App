@@ -70,9 +70,13 @@ export default function ProviderDashboardScreen({ navigation }) {
               <Text style={styles.providerNameText}>{providerName}</Text>
               <Text style={styles.clinicSubtitle}>{providerType} · {clinicName}</Text>
             </View>
-            <View style={styles.avatarContainer}>
+            <TouchableOpacity
+              style={styles.avatarContainer}
+              onPress={() => navigation.navigate('ProviderProfile')}
+              activeOpacity={0.8}
+            >
               <Text style={styles.avatarEmoji}>👨‍⚕️</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 

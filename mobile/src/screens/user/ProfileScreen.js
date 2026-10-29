@@ -135,19 +135,27 @@ export default function ProfileScreen({ navigation }) {
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>My Profile</Text>
         </View>
-        <TouchableOpacity
-          style={styles.headerActionBtn}
-          onPress={() => {
-            if (isEditing) {
-              populateFields(profile || {});
-              setIsEditing(false);
-            } else {
-              setIsEditing(true);
-            }
-          }}
-        >
-          <Text style={styles.headerActionText}>{isEditing ? 'Cancel' : 'Edit'}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRightActions}>
+          <TouchableOpacity
+            style={styles.headerSettingsBtn}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            <Text style={styles.headerSettingsIcon}>⚙️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerActionBtn}
+            onPress={() => {
+              if (isEditing) {
+                populateFields(profile || {});
+                setIsEditing(false);
+              } else {
+                setIsEditing(true);
+              }
+            }}
+          >
+            <Text style={styles.headerActionText}>{isEditing ? 'Cancel' : 'Edit'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -233,6 +241,22 @@ export default function ProfileScreen({ navigation }) {
                     <ProfileField label="Gender" value={profile?.gender} />
                     <ProfileField label="City" value={profile?.city} />
                     <ProfileField label="State" value={profile?.state} isLast />
+                  </View>
+
+                  {/* Settings & Preferences Card */}
+                  <View style={styles.card}>
+                    <Text style={styles.sectionLabel}>PREFERENCES & SECURITY</Text>
+                    <TouchableOpacity
+                      style={styles.settingsRow}
+                      onPress={() => navigation.navigate('Settings')}
+                    >
+                      <Text style={styles.settingsRowIcon}>⚙️</Text>
+                      <View style={styles.settingsRowContent}>
+                        <Text style={styles.settingsRowTitle}>Settings & Permissions</Text>
+                        <Text style={styles.settingsRowSubtitle}>Language, notifications & device permissions</Text>
+                      </View>
+                      <Text style={styles.chevron}>›</Text>
+                    </TouchableOpacity>
                   </View>
 
                   {/* Logout Action per Section 23 & 3.10 */}
@@ -396,6 +420,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
   },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerSettingsBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  headerSettingsIcon: {
+    fontSize: 16,
+  },
   scrollContent: {
     padding: 16,
     paddingBottom: 24,
@@ -552,5 +594,31 @@ const styles = StyleSheet.create({
   },
   editActionRow: {
     marginTop: 10,
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  settingsRowIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  settingsRowContent: {
+    flex: 1,
+  },
+  settingsRowTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  settingsRowSubtitle: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  chevron: {
+    fontSize: 20,
+    color: COLORS.textMuted,
   },
 });
