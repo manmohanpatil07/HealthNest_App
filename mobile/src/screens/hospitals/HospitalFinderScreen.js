@@ -34,6 +34,9 @@ export default function HospitalFinderScreen({ navigation }) {
   // Mode Toggle: 'current' (GPS) vs 'manual' (Administrative cascading selectors)
   const [searchMode, setSearchMode] = useState('current');
 
+  // Configurable Radius (default 25 km, expandable to 50km, 100km)
+  const [radiusKm, setRadiusKm] = useState(25);
+
   // Pagination State
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -46,6 +49,7 @@ export default function HospitalFinderScreen({ navigation }) {
   // Active Location Coordinates (Current Location Mode)
   const [currentCoords, setCurrentCoords] = useState(null);
   const [locationDenied, setLocationDenied] = useState(false);
+  const [locationUnavailable, setLocationUnavailable] = useState(false);
   const [activeLocationName, setActiveLocationName] = useState('All Maharashtra Hospitals');
 
   // Cascading Administrative Location State (Select Location Mode)
@@ -147,6 +151,7 @@ export default function HospitalFinderScreen({ navigation }) {
   const fetchHospitals = useCallback(
     async ({
       coords = currentCoords,
+      radius = radiusKm,
       search = searchTerm,
       pmjay = pmjayOnly,
       targetPage = 1,
@@ -172,7 +177,7 @@ export default function HospitalFinderScreen({ navigation }) {
         if (mode === 'current' && coords) {
           options.latitude = coords.latitude;
           options.longitude = coords.longitude;
-          options.radius = 50;
+          options.radius = radius;
         }
 
         if (mode === 'manual') {
@@ -220,16 +225,18 @@ export default function HospitalFinderScreen({ navigation }) {
         setRefreshing(false);
       }
     },
-    [currentCoords, searchTerm, pmjayOnly, searchMode, selectedState, selectedDistrict, selectedSubDistrict]
+    [currentCoords, radiusKm, searchTerm, pmjayOnly, searchMode, selectedState, selectedDistrict, selectedSubDistrict]
   );
 
-  // Request device location and fetch nearby hospitals
-  const handleUseCurrentLocation = async () => {
+  // Request device location and fetch nearby hospitals sorted by distance
+  const handleUseCurrentLocation = async (customRadius = radiusKm) => {
     setSearchMode('current');
+    setError('');
+    setLocationDenied(false);
+    setLocationUnavailable(false);
+
     try {
       setLocating(true);
-      setError('');
-      setLocationDenied(false);
 
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
@@ -240,9 +247,23 @@ export default function HospitalFinderScreen({ navigation }) {
         return;
       }
 
+      // Check if location services are enabled on device
+      const serviceEnabled = await Location.hasServicesEnabledAsync();
+      if (!serviceEnabled) {
+        setLocationUnavailable(true);
+        setCurrentCoords(null);
+        setActiveLocationName('Location services disabled');
+        fetchHospitals({ coords: null, mode: 'current', targetPage: 1 });
+        return;
+      }
+
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+
+      if (!location || !location.coords) {
+        throw new Error('Location coordinates unavailable');
+      }
 
       const coords = {
         latitude: location.coords.latitude,
@@ -250,11 +271,11 @@ export default function HospitalFinderScreen({ navigation }) {
       };
 
       setCurrentCoords(coords);
-      setActiveLocationName('Nearby your current location');
-      fetchHospitals({ coords, mode: 'current', targetPage: 1 });
+      setActiveLocationName(`Nearby (${customRadius} km radius)`);
+      fetchHospitals({ coords, radius: customRadius, mode: 'current', targetPage: 1 });
     } catch (err) {
       console.warn('[HospitalFinderScreen] Location error:', err);
-      setLocationDenied(true);
+      setLocationUnavailable(true);
       setActiveLocationName('Search by district or hospital name');
       fetchHospitals({ coords: null, mode: 'current', targetPage: 1 });
     } finally {
@@ -279,7 +300,7 @@ export default function HospitalFinderScreen({ navigation }) {
       const parts = [selectedSubDistrict, selectedDistrict, selectedState].filter(Boolean);
       setActiveLocationName(parts.join(' > '));
     } else if (currentCoords) {
-      setActiveLocationName('Nearby your current location');
+      setActiveLocationName(`Nearby (${radiusKm} km radius)`);
     } else {
       setActiveLocationName('All Maharashtra Hospitals');
     }
@@ -292,7 +313,7 @@ export default function HospitalFinderScreen({ navigation }) {
       const parts = [selectedSubDistrict, selectedDistrict, selectedState].filter(Boolean);
       setActiveLocationName(parts.join(' > '));
     } else if (currentCoords) {
-      setActiveLocationName('Nearby your current location');
+      setActiveLocationName(`Nearby (${radiusKm} km radius)`);
     } else {
       setActiveLocationName('All Maharashtra Hospitals');
     }
@@ -316,6 +337,20 @@ export default function HospitalFinderScreen({ navigation }) {
       targetPage: 1,
       isAppend: false,
     });
+  };
+
+  const handleRadiusChange = (newRadius) => {
+    setRadiusKm(newRadius);
+    if (currentCoords) {
+      setActiveLocationName(`Nearby (${newRadius} km radius)`);
+      fetchHospitals({
+        coords: currentCoords,
+        radius: newRadius,
+        mode: 'current',
+        targetPage: 1,
+        isAppend: false,
+      });
+    }
   };
 
   const handleLoadMore = () => {
@@ -352,7 +387,7 @@ export default function HospitalFinderScreen({ navigation }) {
           onPress={() => {
             setSearchMode('current');
             if (currentCoords) {
-              setActiveLocationName('Nearby your current location');
+              setActiveLocationName(`Nearby (${radiusKm} km radius)`);
             } else {
               setActiveLocationName('All Maharashtra Hospitals');
             }
@@ -409,13 +444,33 @@ export default function HospitalFinderScreen({ navigation }) {
         />
       ) : (
         /* Action row for GPS mode */
-        <View style={styles.filterActionRow}>
-          <LocationButton
-            onPress={handleUseCurrentLocation}
-            loading={locating}
-            isActive={Boolean(currentCoords)}
-          />
-          <HospitalFilter active={pmjayOnly} onToggle={handleTogglePmjay} />
+        <View>
+          <View style={styles.filterActionRow}>
+            <LocationButton
+              onPress={() => handleUseCurrentLocation(radiusKm)}
+              loading={locating}
+              isActive={Boolean(currentCoords)}
+            />
+            <HospitalFilter active={pmjayOnly} onToggle={handleTogglePmjay} />
+          </View>
+
+          {/* Configurable Radius Selector (when GPS location is active) */}
+          {currentCoords ? (
+            <View style={styles.radiusRow}>
+              <Text style={styles.radiusLabel}>Search Radius:</Text>
+              {[15, 25, 50, 100].map((r) => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.radiusChip, radiusKm === r && styles.radiusChipActive]}
+                  onPress={() => handleRadiusChange(r)}
+                >
+                  <Text style={[styles.radiusChipText, radiusKm === r && styles.radiusChipTextActive]}>
+                    {r} km
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
         </View>
       )}
 
@@ -432,6 +487,27 @@ export default function HospitalFinderScreen({ navigation }) {
           <Text style={styles.locationDeniedText}>
             📍 {t('hospital.locationDenied')}
           </Text>
+          <TouchableOpacity
+            style={styles.alertRetryButton}
+            onPress={() => handleUseCurrentLocation(radiusKm)}
+          >
+            <Text style={styles.alertRetryText}>Grant Permission & Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {/* Location Unavailable Alert */}
+      {locationUnavailable && searchMode === 'current' ? (
+        <View style={styles.locationDeniedAlert}>
+          <Text style={styles.locationDeniedText}>
+            📍 Device GPS or location services are currently unavailable. Please enable GPS in device settings or use Select Location.
+          </Text>
+          <TouchableOpacity
+            style={styles.alertRetryButton}
+            onPress={() => handleUseCurrentLocation(radiusKm)}
+          >
+            <Text style={styles.alertRetryText}>Retry Location</Text>
+          </TouchableOpacity>
         </View>
       ) : null}
 
@@ -441,21 +517,40 @@ export default function HospitalFinderScreen({ navigation }) {
           {totalCount} {totalCount === 1 ? 'hospital' : 'hospitals'} found
           {hospitals.length > 0 && totalCount > hospitals.length ? ` (showing ${hospitals.length})` : ''}
         </Text>
-        {pmjayOnly ? (
-          <View style={styles.filterActiveTag}>
-            <Text style={styles.filterActiveText}>PM-JAY Filter Active</Text>
-          </View>
-        ) : null}
+        <View style={styles.statusTagsRow}>
+          {currentCoords && searchMode === 'current' ? (
+            <View style={styles.gpsActiveTag}>
+              <Text style={styles.gpsActiveText}>Sorted by Distance</Text>
+            </View>
+          ) : null}
+          {pmjayOnly ? (
+            <View style={styles.filterActiveTag}>
+              <Text style={styles.filterActiveText}>PM-JAY Active</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
 
-      {/* Error Message */}
-      {error ? <ErrorMessage message={error} /> : null}
+      {/* Error Message with Retry */}
+      {error ? (
+        <View style={styles.errorArea}>
+          <ErrorMessage message={error} />
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => fetchHospitals({ targetPage: 1, isAppend: false })}
+          >
+            <Text style={styles.retryButtonText}>↻ Retry Search</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {/* Initial Loading Spinner */}
       {loading && !refreshing ? (
         <View style={styles.loadingArea}>
           <LoadingSpinner size="large" />
-          <Text style={styles.loadingText}>Locating hospitals...</Text>
+          <Text style={styles.loadingText}>
+            {locating ? 'Acquiring GPS coordinates...' : 'Finding nearby hospitals...'}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -475,7 +570,7 @@ export default function HospitalFinderScreen({ navigation }) {
       return (
         <View style={styles.footerContainer}>
           <Text style={styles.bottomReferenceNote}>
-            Hospital data verified with official NHA PM-JAY registry. Always verify before visiting.
+            Hospital data verified with official NHA PM-JAY registry. Distances calculated based on verified facility coordinates.
           </Text>
         </View>
       );
@@ -486,6 +581,41 @@ export default function HospitalFinderScreen({ navigation }) {
 
   const renderEmpty = () => {
     if (loading) return null;
+
+    // Specific empty state when in Current Location GPS mode with 0 hospitals found
+    if (searchMode === 'current' && currentCoords) {
+      return (
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyEmojiCircle}>
+            <Text style={styles.emptyEmoji}>📍</Text>
+          </View>
+          <Text style={styles.emptyTitle}>No hospitals found within {radiusKm} km</Text>
+          <Text style={styles.emptySupporting}>
+            We could not find any hospitals with stored coordinates within {radiusKm} km of your device location.
+            You can widen the search radius or manually select your district.
+          </Text>
+          <View style={styles.emptyActionsRow}>
+            {radiusKm < 100 && (
+              <TouchableOpacity
+                style={styles.widenButton}
+                onPress={() => handleRadiusChange(Math.min(radiusKm * 2, 100))}
+              >
+                <Text style={styles.widenButtonText}>
+                  Widen to {Math.min(radiusKm * 2, 100)} km
+                </Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.manualFallbackButton}
+              onPress={() => setSearchMode('manual')}
+            >
+              <Text style={styles.manualFallbackText}>Select Location Manually</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.emptyContainer}>
         <View style={styles.emptyEmojiCircle}>
@@ -651,7 +781,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  radiusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 8,
+  },
+  radiusLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    marginRight: 4,
+  },
+  radiusChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+  },
+  radiusChipActive: {
+    backgroundColor: '#0284C7',
+  },
+  radiusChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  radiusChipTextActive: {
+    color: '#FFFFFF',
   },
   manualPmjayRow: {
     flexDirection: 'row',
@@ -670,6 +835,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#92400E',
     fontWeight: '500',
+    marginBottom: 6,
+  },
+  alertRetryButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  alertRetryText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   resultsCountRow: {
     flexDirection: 'row',
@@ -683,6 +861,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#64748B',
   },
+  statusTagsRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  gpsActiveTag: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  gpsActiveText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#059669',
+  },
   filterActiveTag: {
     backgroundColor: '#E0F2FE',
     paddingHorizontal: 8,
@@ -695,6 +890,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#0284C7',
+  },
+  errorArea: {
+    marginBottom: 12,
+  },
+  retryButton: {
+    alignSelf: 'center',
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: '#0284C7',
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   loadingArea: {
     alignItems: 'center',
@@ -725,7 +936,7 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 48,
+    paddingVertical: 40,
     paddingHorizontal: 24,
   },
   emptyEmojiCircle: {
@@ -753,6 +964,36 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 16,
+  },
+  emptyActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  widenButton: {
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  widenButtonText: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  manualFallbackButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  manualFallbackText: {
+    fontSize: 13,
+    color: '#334155',
+    fontWeight: '600',
   },
   emptyActionButton: {
     backgroundColor: '#0284C7',

@@ -8,7 +8,12 @@ import {
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  Modal,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../constants';
 import {
   ProfileField,
@@ -22,6 +27,7 @@ import {
 import { userService } from '../../services/userService';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { SERVER_ROOT_URL } from '../../services/api';
 
 export default function ProfileScreen({ navigation }) {
   const { user: authUser, updateUser, logout } = useAuth();
@@ -35,6 +41,8 @@ export default function ProfileScreen({ navigation }) {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [photoModalVisible, setPhotoModalVisible] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Edit form fields
   const [fullName, setFullName] = useState('');
@@ -125,6 +133,110 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const handlePickFromGallery = async () => {
+    setPhotoModalVisible(false);
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        setError(t('profile.permissionDenied'));
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await handleUploadPhoto(result.assets[0].uri);
+      }
+    } catch (err) {
+      console.warn('[ProfileScreen] Gallery pick error:', err);
+      setError('Failed to select photo from gallery.');
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    setPhotoModalVisible(false);
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        setError(t('profile.cameraPermissionDenied'));
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await handleUploadPhoto(result.assets[0].uri);
+      }
+    } catch (err) {
+      console.warn('[ProfileScreen] Camera capture error:', err);
+      setError('Failed to capture photo with camera.');
+    }
+  };
+
+  const handleUploadPhoto = async (uri) => {
+    try {
+      setUploadingPhoto(true);
+      setError('');
+      setSuccessMsg('');
+
+      const response = await userService.uploadProfilePhoto(uri);
+      if (response && response.success) {
+        const updated = {
+          ...profile,
+          profile_image_url: response.profile_image_url,
+        };
+        setProfile(updated);
+        updateUser(updated);
+        setSuccessMsg(t('profile.photoUpdated'));
+        setTimeout(() => setSuccessMsg(''), 4000);
+      } else {
+        setError(response?.message || 'Failed to upload photo.');
+      }
+    } catch (err) {
+      console.warn('[ProfileScreen] Photo upload error:', err);
+      setError(err.response?.data?.message || 'Error uploading profile photo. Check your connection.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    setPhotoModalVisible(false);
+    try {
+      setUploadingPhoto(true);
+      setError('');
+      setSuccessMsg('');
+
+      const response = await userService.removeProfilePhoto();
+      if (response && response.success) {
+        const updated = {
+          ...profile,
+          profile_image_url: null,
+        };
+        setProfile(updated);
+        updateUser(updated);
+        setSuccessMsg(t('profile.photoRemoved'));
+        setTimeout(() => setSuccessMsg(''), 4000);
+      } else {
+        setError(response?.message || 'Failed to remove photo.');
+      }
+    } catch (err) {
+      console.warn('[ProfileScreen] Photo removal error:', err);
+      setError(err.response?.data?.message || 'Error removing photo.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleConfirmLogout = async () => {
     setShowLogoutDialog(false);
     await logout();
@@ -190,13 +302,39 @@ export default function ProfileScreen({ navigation }) {
                 </View>
               ) : null}
 
-              {/* Profile Avatar Card per Section 23 */}
+              {/* Profile Avatar Card per Section 23 with Real Photo Support */}
               <View style={styles.profileHeroCard}>
-                <View style={styles.avatarContainer}>
-                  <Text style={styles.avatarEmoji}>
-                    {profile?.gender === 'Female' ? '👩' : '👨'}
-                  </Text>
-                </View>
+                <TouchableOpacity
+                  style={styles.avatarContainer}
+                  onPress={() => setPhotoModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  {uploadingPhoto ? (
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                  ) : profile?.profile_image_url ? (
+                    <Image
+                      source={{
+                        uri: profile.profile_image_url.startsWith('http')
+                          ? profile.profile_image_url
+                          : `${SERVER_ROOT_URL}${profile.profile_image_url}`,
+                      }}
+                      style={styles.avatarImage}
+                    />
+                  ) : (
+                    <Text style={styles.avatarEmoji}>
+                      {profile?.gender === 'Female' ? '👩' : '👨'}
+                    </Text>
+                  )}
+                  <View style={styles.cameraPill}>
+                    <Text style={styles.cameraIcon}>📷</Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setPhotoModalVisible(true)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.changePhotoText}>{t('profile.changePhoto')}</Text>
+                </TouchableOpacity>
                 <Text style={styles.userName}>{profile?.full_name || 'HealthNest User'}</Text>
                 <Text style={styles.userMobile}>{profile?.mobile}</Text>
 
@@ -373,6 +511,51 @@ export default function ProfileScreen({ navigation }) {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* Photo Picker Bottom Action Sheet Modal */}
+      <Modal
+        visible={photoModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPhotoModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setPhotoModalVisible(false)}
+        >
+          <View style={styles.photoActionSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>{t('profile.changePhoto')}</Text>
+
+            <TouchableOpacity style={styles.sheetActionItem} onPress={handlePickFromGallery}>
+              <Text style={styles.sheetActionEmoji}>🖼️</Text>
+              <Text style={styles.sheetActionText}>{t('profile.chooseFromGallery')}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sheetActionItem} onPress={handleTakePhoto}>
+              <Text style={styles.sheetActionEmoji}>📸</Text>
+              <Text style={styles.sheetActionText}>{t('profile.takePhoto')}</Text>
+            </TouchableOpacity>
+
+            {profile?.profile_image_url ? (
+              <TouchableOpacity style={styles.sheetActionItem} onPress={handleRemovePhoto}>
+                <Text style={styles.sheetActionEmoji}>🗑️</Text>
+                <Text style={[styles.sheetActionText, styles.sheetActionDelete]}>
+                  {t('profile.removePhoto')}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <TouchableOpacity
+              style={styles.sheetCancelBtn}
+              onPress={() => setPhotoModalVisible(false)}
+            >
+              <Text style={styles.sheetCancelText}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Logout Confirmation Bottom Sheet per Section 23 */}
       <ConfirmationDialog
         visible={showLogoutDialog}
@@ -463,16 +646,109 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   avatarContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: COLORS.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
+    position: 'relative',
+    overflow: 'visible',
+  },
+  avatarImage: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
   },
   avatarEmoji: {
-    fontSize: 36,
+    fontSize: 40,
+  },
+  cameraPill: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+  },
+  cameraIcon: {
+    fontSize: 13,
+  },
+  changePhotoText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
+    marginBottom: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  photoActionSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  sheetActionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  sheetActionEmoji: {
+    fontSize: 20,
+    marginRight: 14,
+  },
+  sheetActionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  sheetActionDelete: {
+    color: '#DC2626',
+  },
+  sheetCancelBtn: {
+    marginTop: 14,
+    paddingVertical: 12,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  sheetCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
   },
   userName: {
     fontSize: 20,

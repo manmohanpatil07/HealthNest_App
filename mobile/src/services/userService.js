@@ -18,6 +18,38 @@ export const userService = {
   },
 
   /**
+   * Upload user profile photo
+   * @param {string} fileUri - Local device image URI
+   */
+  uploadProfilePhoto: async (fileUri) => {
+    const filename = fileUri.split('/').pop() || 'profile.jpg';
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1].toLowerCase() === 'jpg' ? 'jpeg' : match[1].toLowerCase()}` : 'image/jpeg';
+
+    const formData = new FormData();
+    formData.append('photo', {
+      uri: fileUri,
+      name: filename,
+      type,
+    });
+
+    const response = await api.post('/user/profile/photo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Remove user profile photo
+   */
+  removeProfilePhoto: async () => {
+    const response = await api.delete('/user/profile/photo');
+    return response.data;
+  },
+
+  /**
    * Get user dashboard data
    */
   getDashboard: async () => {
@@ -36,11 +68,48 @@ export const userService = {
   },
 
   /**
-   * Create a new health record
-   * @param {{ record_type: string, title: string, description?: string, record_date: string }} data
+   * Create a new health record with optional photo attachment
+   * @param {{ record_type: string, title: string, description?: string, record_date: string, attachmentUri?: string }} data
    */
   createHealthRecord: async (data) => {
+    if (data.attachmentUri) {
+      const filename = data.attachmentUri.split('/').pop() || 'attachment.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const ext = match ? match[1].toLowerCase() : 'jpg';
+      let type = 'image/jpeg';
+      if (ext === 'png') type = 'image/png';
+      else if (ext === 'webp') type = 'image/webp';
+      else if (ext === 'pdf') type = 'application/pdf';
+
+      const formData = new FormData();
+      formData.append('record_type', data.record_type);
+      formData.append('title', data.title);
+      if (data.description) formData.append('description', data.description);
+      formData.append('record_date', data.record_date);
+      formData.append('attachment', {
+        uri: data.attachmentUri,
+        name: filename,
+        type,
+      });
+
+      const response = await api.post('/health-records', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    }
+
     const response = await api.post('/health-records', data);
+    return response.data;
+  },
+
+  /**
+   * Get single health record details with attachments
+   * @param {number} recordId
+   */
+  getHealthRecordById: async (recordId) => {
+    const response = await api.get(`/health-records/${recordId}`);
     return response.data;
   },
 

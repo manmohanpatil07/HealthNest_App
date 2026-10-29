@@ -6,12 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { COLORS } from '../../constants';
 import { LoadingSpinner, ErrorMessage, UserBottomNav } from '../../components';
 import { userService } from '../../services/userService';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { SERVER_ROOT_URL } from '../../services/api';
 
 export default function DashboardScreen({ navigation }) {
   const { user: authUser } = useAuth();
@@ -42,9 +44,62 @@ export default function DashboardScreen({ navigation }) {
   }, []);
 
   const userName = dashboardData?.user?.full_name || authUser?.full_name || 'User';
-  const bloodGroup = dashboardData?.healthStatus?.bloodGroup || authUser?.blood_group || 'B+';
+  const profileImageUrl = dashboardData?.user?.profile_image_url || authUser?.profile_image_url;
+  const bloodGroup = dashboardData?.healthStatus?.bloodGroup || authUser?.blood_group || 'Not set';
+  const healthStatus = dashboardData?.healthStatus;
   const upcomingVaccine = dashboardData?.upcomingVaccination;
   const recentRecords = dashboardData?.recentRecords || [];
+
+  // Helper to get translated status title based on data state
+  const getStatusDisplay = () => {
+    if (!healthStatus) {
+      return {
+        title: t('dashboard.healthStatus'),
+        reason: t('dashboard.lastUpdated'),
+        emoji: '📋',
+        badgeBg: 'rgba(255, 255, 255, 0.15)',
+        textColor: '#FFFFFF',
+      };
+    }
+
+    switch (healthStatus.state) {
+      case 'attention_needed':
+        return {
+          title: t('dashboard.statusAttention'),
+          reason: healthStatus.reason,
+          emoji: '⚠️',
+          badgeBg: '#FEF2F2',
+          textColor: '#DC2626',
+        };
+      case 'upcoming_reminder':
+        return {
+          title: t('dashboard.statusUpcoming'),
+          reason: healthStatus.reason,
+          emoji: '⏰',
+          badgeBg: '#FFFBEB',
+          textColor: '#D97706',
+        };
+      case 'no_pending_reminders':
+        return {
+          title: t('dashboard.statusNoPending'),
+          reason: healthStatus.reason,
+          emoji: '✓',
+          badgeBg: '#F0FDF4',
+          textColor: '#16A34A',
+        };
+      case 'add_health_info':
+      default:
+        return {
+          title: t('dashboard.statusAddInfo'),
+          reason: healthStatus.reason,
+          emoji: '📋',
+          badgeBg: 'rgba(255, 255, 255, 0.2)',
+          textColor: '#FFFFFF',
+        };
+    }
+  };
+
+  const statusInfo = getStatusDisplay();
 
   return (
     <View style={styles.screenContainer}>
@@ -72,18 +127,41 @@ export default function DashboardScreen({ navigation }) {
               style={styles.avatarButton}
               onPress={() => navigation.navigate('Profile')}
             >
-              <Text style={styles.avatarEmoji}>
-                {dashboardData?.user?.gender === 'Female' ? '👩' : '👨'}
-              </Text>
+              {profileImageUrl ? (
+                <Image
+                  source={{
+                    uri: profileImageUrl.startsWith('http')
+                      ? profileImageUrl
+                      : `${SERVER_ROOT_URL}${profileImageUrl}`,
+                  }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <Text style={styles.avatarEmoji}>
+                  {dashboardData?.user?.gender === 'Female' ? '👩' : '👨'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
 
-          {/* Health Status Card per Section 22 */}
+          {/* Transparent Record-Based Health Summary Card */}
           <View style={styles.healthStatusCard}>
             <View style={styles.healthStatusLeft}>
-              <Text style={styles.healthStatusTitle}>{t('dashboard.healthStatus')}</Text>
-              <Text style={styles.healthStatusState}>{t('common.allGood')}</Text>
-              <Text style={styles.healthStatusSub}>{t('dashboard.lastUpdated')}</Text>
+              <View style={styles.statusBadgeRow}>
+                <Text style={styles.healthStatusTitle}>{t('dashboard.healthStatus')}</Text>
+                <View style={[styles.indicatorPill, { backgroundColor: statusInfo.badgeBg }]}>
+                  <Text style={styles.indicatorEmoji}>{statusInfo.emoji}</Text>
+                  <Text style={[styles.indicatorText, { color: statusInfo.textColor }]}>
+                    {statusInfo.title}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.healthStatusReason} numberOfLines={2}>
+                {statusInfo.reason}
+              </Text>
+              <Text style={styles.healthStatusDisclaimer}>
+                {t('dashboard.notMedicalAdvice')}
+              </Text>
             </View>
             <View style={styles.healthStatusRight}>
               <Text style={styles.bloodLabel}>{t('dashboard.bloodGroup')}</Text>
@@ -331,6 +409,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   avatarEmoji: {
     fontSize: 24,
@@ -347,22 +431,46 @@ const styles = StyleSheet.create({
   },
   healthStatusLeft: {
     flex: 1,
+    marginRight: 10,
+  },
+  statusBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
   },
   healthStatusTitle: {
     fontSize: 12,
     color: '#E0F2FE',
     fontWeight: '600',
-    marginBottom: 4,
   },
-  healthStatusState: {
-    fontSize: 18,
-    fontWeight: '800',
+  indicatorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+  },
+  indicatorEmoji: {
+    fontSize: 11,
+  },
+  indicatorText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  healthStatusReason: {
+    fontSize: 14,
+    fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
+    lineHeight: 18,
   },
-  healthStatusSub: {
-    fontSize: 11,
+  healthStatusDisclaimer: {
+    fontSize: 10,
     color: '#BAE6FD',
+    fontStyle: 'italic',
   },
   healthStatusRight: {
     alignItems: 'center',

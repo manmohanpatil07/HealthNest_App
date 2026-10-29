@@ -365,21 +365,9 @@ const providerController = {
 
       const patient = userRows[0];
 
-      // Fetch health records (read-only)
-      const [healthRecords] = await pool.execute(
-        `SELECT
-          record_id,
-          user_id,
-          record_type,
-          title,
-          description,
-          record_date,
-          created_at
-        FROM health_records
-        WHERE user_id = ?
-        ORDER BY record_date DESC, created_at DESC`,
-        [authorizedUserId]
-      );
+      // Fetch health records with attachments (read-only)
+      const HealthRecord = require('../models/HealthRecord');
+      const healthRecords = await HealthRecord.findByUserId(authorizedUserId);
 
       // Fetch documents (read-only, metadata + file_url)
       const [documents] = await pool.execute(
@@ -535,21 +523,9 @@ const providerController = {
 
       const patient = userRows[0];
 
-      // Fetch health records (read-only)
-      const [healthRecords] = await pool.execute(
-        `SELECT
-          record_id,
-          user_id,
-          record_type,
-          title,
-          description,
-          record_date,
-          created_at
-        FROM health_records
-        WHERE user_id = ?
-        ORDER BY record_date DESC, created_at DESC`,
-        [authorizedUserId]
-      );
+      // Fetch health records with attachments (read-only)
+      const HealthRecord = require('../models/HealthRecord');
+      const healthRecords = await HealthRecord.findByUserId(authorizedUserId);
 
       // Fetch documents (read-only)
       const [documents] = await pool.execute(

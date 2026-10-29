@@ -101,9 +101,14 @@ const mr = {
   // Dashboard (User)
   dashboard: {
     goodMorning: 'शुभ सकाळ,',
-    healthStatus: 'आरोग्य स्थिती',
-    lastUpdated: 'शेवटचे अद्यतन: आज',
+    healthStatus: 'आरोग्य सारांश',
+    lastUpdated: 'नोंदीवर आधारित सारांश',
     bloodGroup: 'रक्तगट',
+    statusAddInfo: 'आरोग्य माहिती जोडा',
+    statusAttention: 'लक्षात घेणे आवश्यक',
+    statusUpcoming: 'आगामी स्मरणपत्र',
+    statusNoPending: 'कोणतीही देय नोंद नाही',
+    notMedicalAdvice: 'नोंदीवर आधारित माहिती; वैद्यकीय निदान नाही.',
     quickAccess: 'जलद पर्याय',
     myRecords: 'माझ्या नोंदी',
     myRecordsSub: 'प्रिस्क्रिप्शन आणि लॅब अहवाल',
@@ -206,6 +211,15 @@ const mr = {
     settingsPermissions: 'सेटिंग्ज आणि परवानग्या',
     settingsSub: 'भाषा, सूचना आणि डिव्हाइस परवानग्या',
     profileUpdated: 'प्रोफाइल यशस्वीरीत्या अद्यतनित केले!',
+    changePhoto: 'फोटो बदला',
+    chooseFromGallery: 'गॅलरीतून निवडा',
+    takePhoto: 'कॅमेऱ्याने फोटो काढा',
+    removePhoto: 'फोटो काढा',
+    photoUpdated: 'प्रोफाइल फोटो यशस्वीरीत्या बदलला!',
+    photoRemoved: 'प्रोफाइल फोटो काढला गेला.',
+    permissionDenied: 'गॅलरी परवानगी नाकारली गेली.',
+    cameraPermissionDenied: 'कॅमेरा परवानगी नाकारली गेली.',
+    uploadingPhoto: 'फोटो अपलोड होत आहे...',
   },
 
   // Provider Module

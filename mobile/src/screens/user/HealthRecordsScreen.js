@@ -14,11 +14,14 @@ import {
   ScrollView,
   Pressable,
   StatusBar,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import userService from '../../services/userService';
 import HealthRecordCard from '../../components/HealthRecordCard';
 import { useLanguage } from '../../context/LanguageContext';
+import { SERVER_ROOT_URL } from '../../services/api';
 
 // ─── Category options (matches UI_INSTRUCTIONS.md §24) ───────────────────────
 const RECORD_TYPES = [
@@ -69,6 +72,10 @@ export default function HealthRecordsScreen() {
   const [formErrors, setFormErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [attachmentUri, setAttachmentUri] = useState(null);
+
+  // Attachment view modal
+  const [viewAttachmentModal, setViewAttachmentModal] = useState({ visible: false, attachment: null });
 
   // Deleting
   const [deleting, setDeleting] = useState(false);
@@ -127,11 +134,62 @@ export default function HealthRecordsScreen() {
     setForm({ ...FORM_INITIAL, record_date: todayISO() });
     setFormErrors({});
     setSaveSuccess(false);
+    setAttachmentUri(null);
     setAddModalVisible(true);
   };
 
   const closeAddModal = () => {
     setAddModalVisible(false);
+    setAttachmentUri(null);
+  };
+
+  const handlePickAttachment = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Storage / Photo permission is required to attach proof.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setAttachmentUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      console.warn('[HealthRecordsScreen] Pick attachment error:', err);
+      Alert.alert('Error', 'Failed to pick attachment image.');
+    }
+  };
+
+  const handleCaptureAttachment = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Camera permission is required to capture document photo.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setAttachmentUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      console.warn('[HealthRecordsScreen] Capture attachment error:', err);
+      Alert.alert('Error', 'Failed to capture photo with camera.');
+    }
+  };
+
+  const handleRemoveAttachment = () => {
+    setAttachmentUri(null);
   };
 
   const validateForm = () => {
@@ -160,6 +218,7 @@ export default function HealthRecordsScreen() {
         title: form.title.trim(),
         description: form.description.trim() || undefined,
         record_date: form.record_date.trim(),
+        attachmentUri: attachmentUri || undefined,
       });
       setSaveSuccess(true);
       await fetchRecords();
@@ -167,6 +226,7 @@ export default function HealthRecordsScreen() {
       setTimeout(() => {
         setAddModalVisible(false);
         setSaveSuccess(false);
+        setAttachmentUri(null);
       }, 800);
     } catch (err) {
       const msg = err?.response?.data?.message || 'Failed to save record. Please try again.';
@@ -279,6 +339,7 @@ export default function HealthRecordsScreen() {
             <HealthRecordCard
               record={item}
               onDelete={() => handleDeletePress(item)}
+              onViewAttachment={(att) => setViewAttachmentModal({ visible: true, attachment: att })}
             />
           )}
           ListEmptyComponent={renderEmpty}
@@ -411,6 +472,52 @@ export default function HealthRecordsScreen() {
                 <Text style={styles.fieldError}>{formErrors.record_date}</Text>
               ) : null}
 
+              {/* 5. Attach Photo / Document Proof */}
+              <Text style={styles.fieldLabel}>Attach Photo / Document Proof</Text>
+              {attachmentUri ? (
+                <View style={styles.attachmentPreviewBox}>
+                  <Image source={{ uri: attachmentUri }} style={styles.attachmentPreviewImage} />
+                  <View style={styles.attachmentPreviewInfo}>
+                    <Text style={styles.attachmentPreviewTitle} numberOfLines={1}>
+                      Attached Photo Ready
+                    </Text>
+                    <View style={styles.attachmentActionButtons}>
+                      <TouchableOpacity
+                        style={styles.replaceAttachBtn}
+                        onPress={handlePickAttachment}
+                      >
+                        <Text style={styles.replaceAttachText}>Replace</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.removeAttachBtn}
+                        onPress={handleRemoveAttachment}
+                      >
+                        <Text style={styles.removeAttachText}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.attachButtonsRow}>
+                  <TouchableOpacity
+                    style={styles.attachBtn}
+                    onPress={handlePickAttachment}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.attachBtnIcon}>🖼️</Text>
+                    <Text style={styles.attachBtnText}>Gallery</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.attachBtn}
+                    onPress={handleCaptureAttachment}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.attachBtnIcon}>📸</Text>
+                    <Text style={styles.attachBtnText}>Camera</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Action buttons */}
               <View style={styles.modalActions}>
                 <TouchableOpacity style={styles.cancelBtn} onPress={closeAddModal} disabled={saving}>
@@ -434,6 +541,52 @@ export default function HealthRecordsScreen() {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ─────────────────── VIEW ATTACHMENT MODAL ─────────────────── */}
+      <Modal
+        visible={viewAttachmentModal.visible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setViewAttachmentModal({ visible: false, attachment: null })}
+      >
+        <View style={styles.viewAttachmentOverlay}>
+          <View style={styles.viewAttachmentHeader}>
+            <Text style={styles.viewAttachmentTitle} numberOfLines={1}>
+              {viewAttachmentModal.attachment?.file_name || 'Medical Document'}
+            </Text>
+            <TouchableOpacity
+              style={styles.closeViewAttachmentBtn}
+              onPress={() => setViewAttachmentModal({ visible: false, attachment: null })}
+            >
+              <Text style={styles.closeViewAttachmentText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.viewAttachmentBody}>
+            {viewAttachmentModal.attachment?.file_type &&
+            viewAttachmentModal.attachment.file_type.startsWith('image/') ? (
+              <Image
+                source={{
+                  uri: viewAttachmentModal.attachment.file_url.startsWith('http')
+                    ? viewAttachmentModal.attachment.file_url
+                    : `${SERVER_ROOT_URL}${viewAttachmentModal.attachment.file_url}`,
+                }}
+                style={styles.fullAttachmentImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={styles.nonImageAttachmentBox}>
+                <Text style={{ fontSize: 56, marginBottom: 12 }}>📄</Text>
+                <Text style={styles.nonImageFileName}>
+                  {viewAttachmentModal.attachment?.file_name}
+                </Text>
+                <Text style={styles.nonImageSubText}>
+                  Document stored securely in HealthNest
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
       </Modal>
 
       {/* ─────────────────── DELETE MODAL ─────────────────── */}
@@ -925,5 +1078,149 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 15,
+  },
+
+  // ── ATTACHMENT PICKER & PREVIEW ──────────────────────────────────────────
+  attachButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  attachBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#94A3B8',
+    borderRadius: 12,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  attachBtnIcon: {
+    fontSize: 16,
+  },
+  attachBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  attachmentPreviewBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1.5,
+    borderColor: '#BAE6FD',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 16,
+  },
+  attachmentPreviewImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: '#E2E8F0',
+  },
+  attachmentPreviewInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  attachmentPreviewTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0369A1',
+    marginBottom: 6,
+  },
+  attachmentActionButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  replaceAttachBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: '#E0F2FE',
+    borderRadius: 6,
+  },
+  replaceAttachText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  removeAttachBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 6,
+  },
+  removeAttachText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+
+  // ── VIEW ATTACHMENT MODAL ────────────────────────────────────────────────
+  viewAttachmentOverlay: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+  },
+  viewAttachmentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 54 : 44,
+    paddingBottom: 16,
+    backgroundColor: '#1E293B',
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
+  },
+  viewAttachmentTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginRight: 12,
+  },
+  closeViewAttachmentBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeViewAttachmentText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  viewAttachmentBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  fullAttachmentImage: {
+    width: '100%',
+    height: '100%',
+  },
+  nonImageAttachmentBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  nonImageFileName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  nonImageSubText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    textAlign: 'center',
   },
 });

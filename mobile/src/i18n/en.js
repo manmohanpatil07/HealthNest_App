@@ -100,9 +100,14 @@ const en = {
   // Dashboard (User)
   dashboard: {
     goodMorning: 'Good morning,',
-    healthStatus: 'Health Status',
-    lastUpdated: 'Last updated: Today',
+    healthStatus: 'Health Summary',
+    lastUpdated: 'Record-based summary',
     bloodGroup: 'Blood Group',
+    statusAddInfo: 'Add your health information',
+    statusAttention: 'Attention needed',
+    statusUpcoming: 'Upcoming reminder',
+    statusNoPending: 'No pending reminders',
+    notMedicalAdvice: 'Informational record-based summary; not a medical diagnosis.',
     quickAccess: 'QUICK ACCESS',
     myRecords: 'My Records',
     myRecordsSub: 'Prescriptions & lab reports',
@@ -205,6 +210,15 @@ const en = {
     settingsPermissions: 'Settings & Permissions',
     settingsSub: 'Language, notifications & device permissions',
     profileUpdated: 'Profile updated successfully!',
+    changePhoto: 'Change Photo',
+    chooseFromGallery: 'Choose from Gallery',
+    takePhoto: 'Take Photo',
+    removePhoto: 'Remove Photo',
+    photoUpdated: 'Profile picture updated successfully!',
+    photoRemoved: 'Profile picture removed.',
+    permissionDenied: 'Photo library permission was denied.',
+    cameraPermissionDenied: 'Camera permission was denied.',
+    uploadingPhoto: 'Uploading profile photo...',
   },
 
   // Provider Module

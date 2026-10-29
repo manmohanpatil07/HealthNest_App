@@ -30,6 +30,7 @@ const getBaseUrl = () => {
 };
 
 export const API_BASE_URL = getBaseUrl();
+export const SERVER_ROOT_URL = API_BASE_URL.replace(/\/api$/, '');
 
 const TOKEN_KEY = 'healthnest_jwt_token';
 

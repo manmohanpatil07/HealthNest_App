@@ -54,8 +54,8 @@ const hospitalService = {
       throw error;
     }
 
-    // Validate radius
-    let radiusKm = 50;
+    // Validate radius (sensible default 25 km, configurable up to 500 km)
+    let radiusKm = 25;
     if (radius !== undefined && radius !== null && String(radius).trim() !== '') {
       const parsedRadius = parseFloat(radius);
       if (isNaN(parsedRadius) || parsedRadius <= 0 || parsedRadius > 500) {

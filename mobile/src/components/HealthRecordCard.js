@@ -4,7 +4,9 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  Image,
 } from 'react-native';
+import { SERVER_ROOT_URL } from '../services/api';
 
 // Category config: icon + label + colors — matches UI_INSTRUCTIONS.md §24
 const CATEGORY_CONFIG = {
@@ -29,14 +31,21 @@ function formatDate(dateStr) {
 /**
  * HealthRecordCard
  * Props:
- *  - record: { record_id, record_type, title, description, record_date }
+ *  - record: { record_id, record_type, title, description, record_date, attachments }
  *  - onDelete: () => void
+ *  - onViewAttachment: (attachment) => void
+ *  - onPress: () => void
  */
-export default function HealthRecordCard({ record, onDelete }) {
+export default function HealthRecordCard({ record, onDelete, onViewAttachment, onPress }) {
   const config = CATEGORY_CONFIG[record.record_type] || CATEGORY_CONFIG['Other'];
+  const firstAttachment = record.attachments && record.attachments.length > 0 ? record.attachments[0] : null;
 
   return (
-    <View style={[styles.card, { backgroundColor: config.bg, borderColor: config.border }]}>
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: config.bg, borderColor: config.border }]}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.85 : 1}
+    >
       <View style={styles.headerRow}>
         {/* Category badge */}
         <View style={[styles.badge, { backgroundColor: config.badge + '20', borderColor: config.badge }]}>
@@ -44,15 +53,17 @@ export default function HealthRecordCard({ record, onDelete }) {
           <Text style={[styles.badgeLabel, { color: config.badge }]}>{record.record_type}</Text>
         </View>
 
-        {/* Delete button */}
-        <TouchableOpacity
-          style={styles.deleteBtn}
-          onPress={onDelete}
-          accessibilityLabel={`Delete ${record.title}`}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Text style={styles.deleteBtnText}>🗑</Text>
-        </TouchableOpacity>
+        {/* Delete button (if user is owner and onDelete supplied) */}
+        {onDelete ? (
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={onDelete}
+            accessibilityLabel={`Delete ${record.title}`}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.deleteBtnText}>🗑</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Title */}
@@ -63,12 +74,42 @@ export default function HealthRecordCard({ record, onDelete }) {
         <Text style={styles.description} numberOfLines={2}>{record.description}</Text>
       )}
 
+      {/* Attachment Strip if present */}
+      {firstAttachment ? (
+        <TouchableOpacity
+          style={styles.attachmentStrip}
+          onPress={() => onViewAttachment && onViewAttachment(firstAttachment)}
+          activeOpacity={0.7}
+        >
+          {firstAttachment.file_type && firstAttachment.file_type.startsWith('image/') ? (
+            <Image
+              source={{
+                uri: firstAttachment.file_url.startsWith('http')
+                  ? firstAttachment.file_url
+                  : `${SERVER_ROOT_URL}${firstAttachment.file_url}`,
+              }}
+              style={styles.attachmentThumbnail}
+            />
+          ) : (
+            <View style={styles.attachmentFileIcon}>
+              <Text style={{ fontSize: 18 }}>📄</Text>
+            </View>
+          )}
+          <View style={styles.attachmentInfo}>
+            <Text style={styles.attachmentName} numberOfLines={1}>
+              📎 {firstAttachment.file_name || 'Medical Document'}
+            </Text>
+            <Text style={styles.attachmentActionHint}>Tap to view proof</Text>
+          </View>
+        </TouchableOpacity>
+      ) : null}
+
       {/* Date */}
       <View style={styles.dateRow}>
         <Text style={styles.dateIcon}>📅</Text>
         <Text style={styles.date}>{formatDate(record.record_date)}</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -125,6 +166,45 @@ const styles = StyleSheet.create({
     color: '#475569',
     lineHeight: 19,
     marginBottom: 8,
+  },
+  attachmentStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: 10,
+    padding: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  attachmentThumbnail: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  attachmentFileIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachmentInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  attachmentName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  attachmentActionHint: {
+    fontSize: 11,
+    color: '#0284C7',
+    fontWeight: '600',
+    marginTop: 2,
   },
   dateRow: {
     flexDirection: 'row',

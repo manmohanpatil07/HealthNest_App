@@ -45,6 +45,7 @@ const User = {
         city,
         state,
         blood_group,
+        profile_image_url,
         emergency_contact,
         created_at,
         updated_at
@@ -109,10 +110,11 @@ const User = {
     city = null,
     state = null,
     blood_group = null,
-    emergency_contact = null
+    emergency_contact = null,
+    profile_image_url = undefined
   }) {
-    const [result] = await pool.execute(
-      `UPDATE users
+    let sql = `
+      UPDATE users
       SET
         full_name = ?,
         email = ?,
@@ -121,20 +123,40 @@ const User = {
         city = ?,
         state = ?,
         blood_group = ?,
-        emergency_contact = ?,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = ?`,
-      [
-        full_name,
-        email || null,
-        date_of_birth || null,
-        gender || null,
-        city || null,
-        state || null,
-        blood_group || null,
-        emergency_contact || null,
-        userId
-      ]
+        emergency_contact = ?
+    `;
+    const params = [
+      full_name,
+      email || null,
+      date_of_birth || null,
+      gender || null,
+      city || null,
+      state || null,
+      blood_group || null,
+      emergency_contact || null
+    ];
+
+    if (profile_image_url !== undefined) {
+      sql += `, profile_image_url = ?`;
+      params.push(profile_image_url);
+    }
+
+    sql += `, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`;
+    params.push(userId);
+
+    const [result] = await pool.execute(sql, params);
+    return result.affectedRows > 0;
+  },
+
+  /**
+   * Update profile image URL directly
+   */
+  async updateProfileImage(userId, profileImageUrl) {
+    const [result] = await pool.execute(
+      `UPDATE users
+       SET profile_image_url = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = ?`,
+      [profileImageUrl, userId]
     );
     return result.affectedRows > 0;
   }

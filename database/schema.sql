@@ -25,6 +25,7 @@ CREATE TABLE users (
     city VARCHAR(100) NULL,
     state VARCHAR(100) NULL,
     blood_group VARCHAR(10) NULL,
+    profile_image_url VARCHAR(500) NULL,
     emergency_contact VARCHAR(15) NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -54,6 +55,20 @@ CREATE TABLE health_records (
     record_date DATE NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_health_records_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+-- 3b. health_record_attachments Table
+CREATE TABLE health_record_attachments (
+    attachment_id INT AUTO_INCREMENT PRIMARY KEY,
+    record_id INT NOT NULL,
+    user_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_url VARCHAR(500) NOT NULL,
+    file_type VARCHAR(50) NOT NULL,
+    file_size INT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_hr_attachment_record FOREIGN KEY (record_id) REFERENCES health_records(record_id) ON DELETE CASCADE,
+    CONSTRAINT fk_hr_attachment_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 -- 4. documents Table
