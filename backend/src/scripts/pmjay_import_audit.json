@@ -1,0 +1,162 @@
+{
+  "importedAt": "2026-10-29T06:58:05.618Z",
+  "officialSource": "https://hospitals.pmjay.gov.in/Search/empnlWorkFlow.htm",
+  "state": "Maharashtra",
+  "pagesProcessed": 215,
+  "totalParsedRecords": 2144,
+  "uniqueRecords": 2102,
+  "newlyInserted": 2101,
+  "updatedExisting": 1,
+  "totalInDatabase": 2108,
+  "totalPmjayVerified": "2106",
+  "districtBreakdown": [
+    {
+      "city": "Pune",
+      "count": 231
+    },
+    {
+      "city": "Nagpur",
+      "count": 162
+    },
+    {
+      "city": "Thane",
+      "count": 162
+    },
+    {
+      "city": "Nashik",
+      "count": 146
+    },
+    {
+      "city": "Mumbai",
+      "count": 115
+    },
+    {
+      "city": "Kolhapur",
+      "count": 103
+    },
+    {
+      "city": "Solapur",
+      "count": 87
+    },
+    {
+      "city": "Mumbai Suburban",
+      "count": 82
+    },
+    {
+      "city": "Sangli",
+      "count": 67
+    },
+    {
+      "city": "Jalgaon",
+      "count": 62
+    },
+    {
+      "city": "Aurangabad",
+      "count": 61
+    },
+    {
+      "city": "Maharashtra",
+      "count": 58
+    },
+    {
+      "city": "Nanded",
+      "count": 55
+    },
+    {
+      "city": "Beed",
+      "count": 47
+    },
+    {
+      "city": "Buldhana",
+      "count": 46
+    },
+    {
+      "city": "Satara",
+      "count": 46
+    },
+    {
+      "city": "Ahmednagar",
+      "count": 44
+    },
+    {
+      "city": "Dhule",
+      "count": 41
+    },
+    {
+      "city": "Latur",
+      "count": 40
+    },
+    {
+      "city": "Jalna",
+      "count": 38
+    },
+    {
+      "city": "Amravati",
+      "count": 36
+    },
+    {
+      "city": "Palghar",
+      "count": 34
+    },
+    {
+      "city": "Yavatmal",
+      "count": 34
+    },
+    {
+      "city": "Akola",
+      "count": 30
+    },
+    {
+      "city": "Osmanabad",
+      "count": 29
+    },
+    {
+      "city": "Gondia",
+      "count": 28
+    },
+    {
+      "city": "Washim",
+      "count": 27
+    },
+    {
+      "city": "Chandrapur",
+      "count": 23
+    },
+    {
+      "city": "Bhandara",
+      "count": 23
+    },
+    {
+      "city": "Nandurbar",
+      "count": 23
+    },
+    {
+      "city": "Parbhani",
+      "count": 22
+    },
+    {
+      "city": "Gadchiroli",
+      "count": 20
+    },
+    {
+      "city": "Ratnagiri",
+      "count": 19
+    },
+    {
+      "city": "Sindhudurg",
+      "count": 19
+    },
+    {
+      "city": "Raigad",
+      "count": 16
+    },
+    {
+      "city": "Wardha",
+      "count": 16
+    },
+    {
+      "city": "Hingoli",
+      "count": 14
+    }
+  ]
+}

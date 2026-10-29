@@ -98,6 +98,8 @@ CREATE TABLE hospitals (
     hospital_name VARCHAR(200) NOT NULL,
     address TEXT NOT NULL,
     city VARCHAR(100) NOT NULL,
+    district VARCHAR(100) NULL,
+    sub_district VARCHAR(100) NULL,
     state VARCHAR(100) NOT NULL,
     pincode VARCHAR(10) NULL,
     hospital_type VARCHAR(50) NULL,

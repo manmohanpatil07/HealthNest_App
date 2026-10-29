@@ -15,6 +15,7 @@ import DistanceBadge from './DistanceBadge';
 import HospitalDetailsCard from './HospitalDetailsCard';
 import CallButton from './CallButton';
 import DirectionsButton from './DirectionsButton';
+import LocationSelectorPanel from './LocationSelectorPanel';
 
 export {
   AppButton,
@@ -34,6 +35,7 @@ export {
   HospitalDetailsCard,
   CallButton,
   DirectionsButton,
+  LocationSelectorPanel,
 };
 
 export default {
@@ -54,4 +56,5 @@ export default {
   HospitalDetailsCard,
   CallButton,
   DirectionsButton,
+  LocationSelectorPanel,
 };

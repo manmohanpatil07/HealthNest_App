@@ -3,10 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   RefreshControl,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import * as Location from 'expo-location';
 import {
@@ -16,6 +17,7 @@ import {
   LocationButton,
   LoadingSpinner,
   ErrorMessage,
+  LocationSelectorPanel,
 } from '../../components';
 import { hospitalService } from '../../services/hospitalService';
 import { useLanguage } from '../../context/LanguageContext';
@@ -24,39 +26,163 @@ export default function HospitalFinderScreen({ navigation }) {
   const { t } = useLanguage();
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [locating, setLocating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+
+  // Mode Toggle: 'current' (GPS) vs 'manual' (Administrative cascading selectors)
+  const [searchMode, setSearchMode] = useState('current');
+
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [pmjayOnly, setPmjayOnly] = useState(false);
 
-  // Active Location Coordinates (or null if manual text search only)
+  // Active Location Coordinates (Current Location Mode)
   const [currentCoords, setCurrentCoords] = useState(null);
   const [locationDenied, setLocationDenied] = useState(false);
-  const [activeLocationName, setActiveLocationName] = useState('All Available Hospitals');
+  const [activeLocationName, setActiveLocationName] = useState('All Maharashtra Hospitals');
 
-  // Fetch hospitals using currently active filters & coordinates
-  const fetchHospitals = useCallback(
-    async (coords = currentCoords, citySearch = searchTerm, pmjay = pmjayOnly) => {
+  // Cascading Administrative Location State (Select Location Mode)
+  const [availableStates, setAvailableStates] = useState([]);
+  const [availableDistricts, setAvailableDistricts] = useState([]);
+  const [availableSubDistricts, setAvailableSubDistricts] = useState([]);
+
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [selectedSubDistrict, setSelectedSubDistrict] = useState('');
+
+  const [loadingStates, setLoadingStates] = useState(false);
+  const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [loadingSubDistricts, setLoadingSubDistricts] = useState(false);
+
+  // Load available states once
+  useEffect(() => {
+    const fetchStates = async () => {
       try {
-        setLoading(true);
+        setLoadingStates(true);
+        const data = await hospitalService.getLocations();
+        if (data && data.success && data.states) {
+          setAvailableStates(data.states.map((s) => s.name));
+        }
+      } catch (err) {
+        console.warn('[HospitalFinderScreen] Failed to load states:', err);
+      } finally {
+        setLoadingStates(false);
+      }
+    };
+    fetchStates();
+  }, []);
+
+  // Fetch districts when state changes
+  const handleSelectState = async (stateName) => {
+    setSelectedState(stateName);
+    setSelectedDistrict('');
+    setSelectedSubDistrict('');
+    setAvailableDistricts([]);
+    setAvailableSubDistricts([]);
+
+    try {
+      setLoadingDistricts(true);
+      const data = await hospitalService.getLocations({ state: stateName });
+      if (data && data.success && data.districts) {
+        setAvailableDistricts(data.districts.map((d) => d.name));
+      }
+    } catch (err) {
+      console.warn('[HospitalFinderScreen] Failed to load districts:', err);
+    } finally {
+      setLoadingDistricts(false);
+    }
+  };
+
+  // Fetch sub-districts when district changes
+  const handleSelectDistrict = async (districtName) => {
+    setSelectedDistrict(districtName);
+    setSelectedSubDistrict('');
+    setAvailableSubDistricts([]);
+
+    try {
+      setLoadingSubDistricts(true);
+      const data = await hospitalService.getLocations({
+        state: selectedState || 'Maharashtra',
+        district: districtName,
+      });
+      if (data && data.success && data.subDistricts) {
+        setAvailableSubDistricts(data.subDistricts);
+      }
+    } catch (err) {
+      console.warn('[HospitalFinderScreen] Failed to load sub-districts:', err);
+    } finally {
+      setLoadingSubDistricts(false);
+    }
+  };
+
+  const handleSelectSubDistrict = (subDistrictName) => {
+    setSelectedSubDistrict(subDistrictName);
+  };
+
+  const handleResetManualLocation = () => {
+    setSelectedState('');
+    setSelectedDistrict('');
+    setSelectedSubDistrict('');
+    setAvailableDistricts([]);
+    setAvailableSubDistricts([]);
+    setActiveLocationName('All Maharashtra Hospitals');
+    fetchHospitals({
+      targetPage: 1,
+      isAppend: false,
+      mode: 'current',
+      state: null,
+      dist: null,
+      subDist: null,
+    });
+  };
+
+  // Unified fetch hospitals function
+  const fetchHospitals = useCallback(
+    async ({
+      coords = currentCoords,
+      search = searchTerm,
+      pmjay = pmjayOnly,
+      targetPage = 1,
+      isAppend = false,
+      mode = searchMode,
+      state = selectedState,
+      dist = selectedDistrict,
+      subDist = selectedSubDistrict,
+    } = {}) => {
+      try {
+        if (targetPage === 1) {
+          setLoading(true);
+        } else {
+          setLoadingMore(true);
+        }
         setError('');
 
-        const options = {};
+        const options = {
+          page: targetPage,
+          limit: 20,
+        };
 
-        if (coords) {
+        if (mode === 'current' && coords) {
           options.latitude = coords.latitude;
           options.longitude = coords.longitude;
-          options.radius = 25; // 25 km radius
+          options.radius = 50;
         }
 
-        if (citySearch && citySearch.trim()) {
-          options.search = citySearch.trim();
-        } else if (!coords) {
-          // Default city if no GPS coords and no explicit search
-          options.city = 'Pune';
+        if (mode === 'manual') {
+          if (state) options.state = state;
+          if (dist) options.district = dist;
+          if (subDist) options.sub_district = subDist;
+        }
+
+        if (search && search.trim()) {
+          options.search = search.trim();
         }
 
         if (pmjay) {
@@ -66,26 +192,40 @@ export default function HospitalFinderScreen({ navigation }) {
         const data = await hospitalService.getHospitals(options);
 
         if (data && data.success) {
-          setHospitals(data.hospitals || []);
+          const newHospitals = data.hospitals || [];
+          setTotalCount(data.total !== undefined ? data.total : newHospitals.length);
+
+          if (isAppend) {
+            setHospitals((prev) => [...prev, ...newHospitals]);
+          } else {
+            setHospitals(newHospitals);
+          }
+
+          setPage(targetPage);
+          setHasMore(targetPage < (data.totalPages || 1));
         } else {
-          setHospitals([]);
+          if (!isAppend) setHospitals([]);
           setError(data?.message || 'Unable to retrieve hospitals.');
+          setHasMore(false);
         }
       } catch (err) {
         console.warn('[HospitalFinderScreen] Fetch error:', err);
         const apiMessage = err.response?.data?.message;
         setError(apiMessage || 'Unable to connect to the server. Please check your connection.');
-        setHospitals([]);
+        if (!isAppend) setHospitals([]);
+        setHasMore(false);
       } finally {
         setLoading(false);
+        setLoadingMore(false);
         setRefreshing(false);
       }
     },
-    [currentCoords, searchTerm, pmjayOnly]
+    [currentCoords, searchTerm, pmjayOnly, searchMode, selectedState, selectedDistrict, selectedSubDistrict]
   );
 
   // Request device location and fetch nearby hospitals
   const handleUseCurrentLocation = async () => {
+    setSearchMode('current');
     try {
       setLocating(true);
       setError('');
@@ -95,9 +235,8 @@ export default function HospitalFinderScreen({ navigation }) {
       if (status !== 'granted') {
         setLocationDenied(true);
         setCurrentCoords(null);
-        setActiveLocationName('Search by city or area');
-        // Fallback to text search for Pune
-        fetchHospitals(null, searchTerm, pmjayOnly);
+        setActiveLocationName('Search by district or hospital name');
+        fetchHospitals({ coords: null, mode: 'current', targetPage: 1 });
         return;
       }
 
@@ -112,12 +251,12 @@ export default function HospitalFinderScreen({ navigation }) {
 
       setCurrentCoords(coords);
       setActiveLocationName('Nearby your current location');
-      fetchHospitals(coords, searchTerm, pmjayOnly);
+      fetchHospitals({ coords, mode: 'current', targetPage: 1 });
     } catch (err) {
       console.warn('[HospitalFinderScreen] Location error:', err);
       setLocationDenied(true);
-      setActiveLocationName('Search by city or area');
-      fetchHospitals(null, searchTerm, pmjayOnly);
+      setActiveLocationName('Search by district or hospital name');
+      fetchHospitals({ coords: null, mode: 'current', targetPage: 1 });
     } finally {
       setLocating(false);
     }
@@ -125,39 +264,64 @@ export default function HospitalFinderScreen({ navigation }) {
 
   // Initial load
   useEffect(() => {
-    fetchHospitals(null, '', false);
+    fetchHospitals({ targetPage: 1, isAppend: false });
   }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchHospitals(currentCoords, searchTerm, pmjayOnly);
+    fetchHospitals({ targetPage: 1, isAppend: false });
   };
 
   const handleSearchSubmit = () => {
     if (searchTerm.trim()) {
       setActiveLocationName(`Results for "${searchTerm.trim()}"`);
+    } else if (searchMode === 'manual' && selectedState) {
+      const parts = [selectedSubDistrict, selectedDistrict, selectedState].filter(Boolean);
+      setActiveLocationName(parts.join(' > '));
     } else if (currentCoords) {
       setActiveLocationName('Nearby your current location');
     } else {
-      setActiveLocationName('All Available Hospitals');
+      setActiveLocationName('All Maharashtra Hospitals');
     }
-    fetchHospitals(currentCoords, searchTerm, pmjayOnly);
+    fetchHospitals({ targetPage: 1, isAppend: false });
   };
 
   const handleClearSearch = () => {
     setSearchTerm('');
-    if (currentCoords) {
+    if (searchMode === 'manual' && selectedState) {
+      const parts = [selectedSubDistrict, selectedDistrict, selectedState].filter(Boolean);
+      setActiveLocationName(parts.join(' > '));
+    } else if (currentCoords) {
       setActiveLocationName('Nearby your current location');
     } else {
-      setActiveLocationName('All Available Hospitals');
+      setActiveLocationName('All Maharashtra Hospitals');
     }
-    fetchHospitals(currentCoords, '', pmjayOnly);
+    fetchHospitals({ search: '', targetPage: 1, isAppend: false });
   };
 
   const handleTogglePmjay = () => {
     const nextState = !pmjayOnly;
     setPmjayOnly(nextState);
-    fetchHospitals(currentCoords, searchTerm, nextState);
+    fetchHospitals({ pmjay: nextState, targetPage: 1, isAppend: false });
+  };
+
+  const handleApplyManualSearch = () => {
+    const parts = [selectedSubDistrict, selectedDistrict, selectedState].filter(Boolean);
+    setActiveLocationName(parts.length > 0 ? parts.join(' > ') : 'All Maharashtra Hospitals');
+    fetchHospitals({
+      mode: 'manual',
+      state: selectedState,
+      dist: selectedDistrict,
+      subDist: selectedSubDistrict,
+      targetPage: 1,
+      isAppend: false,
+    });
+  };
+
+  const handleLoadMore = () => {
+    if (!loading && !loadingMore && hasMore) {
+      fetchHospitals({ targetPage: page + 1, isAppend: true });
+    }
   };
 
   const handleSelectHospital = (hospital) => {
@@ -167,9 +331,194 @@ export default function HospitalFinderScreen({ navigation }) {
     });
   };
 
+  const renderHeader = () => (
+    <View style={styles.listHeaderContainer}>
+      {/* Search Bar */}
+      <HospitalSearchBar
+        value={searchTerm}
+        onChangeText={setSearchTerm}
+        onSubmit={handleSearchSubmit}
+        onClear={handleClearSearch}
+        placeholder={t('hospital.searchPlaceholder')}
+      />
+
+      {/* Mode Switcher: Current Location vs Select Location */}
+      <View style={styles.modeSwitcherContainer}>
+        <TouchableOpacity
+          style={[
+            styles.modeTab,
+            searchMode === 'current' && styles.modeTabActive,
+          ]}
+          onPress={() => {
+            setSearchMode('current');
+            if (currentCoords) {
+              setActiveLocationName('Nearby your current location');
+            } else {
+              setActiveLocationName('All Maharashtra Hospitals');
+            }
+            fetchHospitals({ mode: 'current', targetPage: 1, isAppend: false });
+          }}
+        >
+          <Text
+            style={[
+              styles.modeTabText,
+              searchMode === 'current' && styles.modeTabTextActive,
+            ]}
+          >
+            📍 Current Location
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.modeTab,
+            searchMode === 'manual' && styles.modeTabActive,
+          ]}
+          onPress={() => setSearchMode('manual')}
+        >
+          <Text
+            style={[
+              styles.modeTabText,
+              searchMode === 'manual' && styles.modeTabTextActive,
+            ]}
+          >
+            🏛️ Select Location
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Manual Cascading Selectors Panel (when manual mode is active) */}
+      {searchMode === 'manual' ? (
+        <LocationSelectorPanel
+          country="India"
+          selectedState={selectedState}
+          selectedDistrict={selectedDistrict}
+          selectedSubDistrict={selectedSubDistrict}
+          states={availableStates}
+          districts={availableDistricts}
+          subDistricts={availableSubDistricts}
+          loadingStates={loadingStates}
+          loadingDistricts={loadingDistricts}
+          loadingSubDistricts={loadingSubDistricts}
+          onSelectState={handleSelectState}
+          onSelectDistrict={handleSelectDistrict}
+          onSelectSubDistrict={handleSelectSubDistrict}
+          onReset={handleResetManualLocation}
+          onSearch={handleApplyManualSearch}
+          isSearching={loading}
+        />
+      ) : (
+        /* Action row for GPS mode */
+        <View style={styles.filterActionRow}>
+          <LocationButton
+            onPress={handleUseCurrentLocation}
+            loading={locating}
+            isActive={Boolean(currentCoords)}
+          />
+          <HospitalFilter active={pmjayOnly} onToggle={handleTogglePmjay} />
+        </View>
+      )}
+
+      {/* When manual mode, show PM-JAY toggle as an independent row */}
+      {searchMode === 'manual' ? (
+        <View style={styles.manualPmjayRow}>
+          <HospitalFilter active={pmjayOnly} onToggle={handleTogglePmjay} />
+        </View>
+      ) : null}
+
+      {/* Location Denied Amber Alert */}
+      {locationDenied && searchMode === 'current' ? (
+        <View style={styles.locationDeniedAlert}>
+          <Text style={styles.locationDeniedText}>
+            📍 {t('hospital.locationDenied')}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Results Count & Filter Status Row */}
+      <View style={styles.resultsCountRow}>
+        <Text style={styles.resultsCountText}>
+          {totalCount} {totalCount === 1 ? 'hospital' : 'hospitals'} found
+          {hospitals.length > 0 && totalCount > hospitals.length ? ` (showing ${hospitals.length})` : ''}
+        </Text>
+        {pmjayOnly ? (
+          <View style={styles.filterActiveTag}>
+            <Text style={styles.filterActiveText}>PM-JAY Filter Active</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Error Message */}
+      {error ? <ErrorMessage message={error} /> : null}
+
+      {/* Initial Loading Spinner */}
+      {loading && !refreshing ? (
+        <View style={styles.loadingArea}>
+          <LoadingSpinner size="large" />
+          <Text style={styles.loadingText}>Locating hospitals...</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
+  const renderFooter = () => {
+    if (loadingMore) {
+      return (
+        <View style={styles.loadingMoreContainer}>
+          <ActivityIndicator size="small" color="#0284C7" />
+          <Text style={styles.loadingMoreText}>Loading more hospitals...</Text>
+        </View>
+      );
+    }
+
+    if (!loading && hospitals.length > 0) {
+      return (
+        <View style={styles.footerContainer}>
+          <Text style={styles.bottomReferenceNote}>
+            Hospital data verified with official NHA PM-JAY registry. Always verify before visiting.
+          </Text>
+        </View>
+      );
+    }
+
+    return null;
+  };
+
+  const renderEmpty = () => {
+    if (loading) return null;
+    return (
+      <View style={styles.emptyContainer}>
+        <View style={styles.emptyEmojiCircle}>
+          <Text style={styles.emptyEmoji}>🏥</Text>
+        </View>
+        {pmjayOnly ? (
+          <>
+            <Text style={styles.emptyTitle}>No PM-JAY hospitals found</Text>
+            <Text style={styles.emptySupporting}>
+              Try selecting a different district/sub-district or disable the PM-JAY filter.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyActionButton}
+              onPress={handleTogglePmjay}
+            >
+              <Text style={styles.emptyActionText}>Remove PM-JAY Filter</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={styles.emptyTitle}>No hospitals found</Text>
+            <Text style={styles.emptySupporting}>
+              Try selecting a broader administrative location (e.g. State or District level) or adjusting your search term.
+            </Text>
+          </>
+        )}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Screen Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -180,115 +529,36 @@ export default function HospitalFinderScreen({ navigation }) {
         </TouchableOpacity>
         <View style={styles.headerTitleCol}>
           <Text style={styles.headerTitle}>{t('hospital.title')}</Text>
-          <Text style={styles.headerSubtitle}>{activeLocationName}</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            {activeLocationName}
+          </Text>
         </View>
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
+      <FlatList
+        data={loading ? [] : hospitals}
+        keyExtractor={(item) => String(item.hospital_id)}
+        renderItem={({ item }) => (
+          <HospitalCard
+            hospital={item}
+            onPress={handleSelectHospital}
+          />
+        )}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={styles.flatListContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0284C7']} />
         }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.4}
         keyboardShouldPersistTaps="handled"
-      >
-        {/* Search Field */}
-        <HospitalSearchBar
-          value={searchTerm}
-          onChangeText={setSearchTerm}
-          onSubmit={handleSearchSubmit}
-          onClear={handleClearSearch}
-          placeholder={t('hospital.searchPlaceholder')}
-        />
-
-        {/* Filter/Action Row */}
-        <View style={styles.filterActionRow}>
-          <LocationButton
-            onPress={handleUseCurrentLocation}
-            loading={locating}
-            isActive={Boolean(currentCoords)}
-          />
-          <HospitalFilter active={pmjayOnly} onToggle={handleTogglePmjay} />
-        </View>
-
-        {/* Location Denied Amber Alert */}
-        {locationDenied ? (
-          <View style={styles.locationDeniedAlert}>
-            <Text style={styles.locationDeniedText}>
-              📍 {t('hospital.locationDenied')}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Results Count & Filter Status Row */}
-        <View style={styles.resultsCountRow}>
-          <Text style={styles.resultsCountText}>
-            {hospitals.length} {hospitals.length === 1 ? 'hospital' : 'hospitals'} found
-          </Text>
-          {pmjayOnly ? (
-            <View style={styles.filterActiveTag}>
-              <Text style={styles.filterActiveText}>PM-JAY Filter Active</Text>
-            </View>
-          ) : null}
-        </View>
-
-        {/* Error Message */}
-        {error ? <ErrorMessage message={error} /> : null}
-
-        {/* Loading Spinner */}
-        {loading && !refreshing ? (
-          <View style={styles.loadingArea}>
-            <LoadingSpinner size="large" />
-            <Text style={styles.loadingText}>Locating hospitals...</Text>
-          </View>
-        ) : (
-          <>
-            {/* Hospital Cards List */}
-            {hospitals.length > 0 ? (
-              hospitals.map((hospital) => (
-                <HospitalCard
-                  key={hospital.hospital_id}
-                  hospital={hospital}
-                  onPress={handleSelectHospital}
-                />
-              ))
-            ) : (
-              /* Empty States per Section 29 */
-              <View style={styles.emptyContainer}>
-                <View style={styles.emptyEmojiCircle}>
-                  <Text style={styles.emptyEmoji}>🏥</Text>
-                </View>
-                {pmjayOnly ? (
-                  <>
-                    <Text style={styles.emptyTitle}>No PM-JAY hospitals found</Text>
-                    <Text style={styles.emptySupporting}>
-                      Try searching a different area or disable the PM-JAY filter.
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.emptyActionButton}
-                      onPress={handleTogglePmjay}
-                    >
-                      <Text style={styles.emptyActionText}>Remove PM-JAY Filter</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.emptyTitle}>No hospitals found</Text>
-                    <Text style={styles.emptySupporting}>
-                      Try a different search term or area.
-                    </Text>
-                  </>
-                )}
-              </View>
-            )}
-
-            {/* Bottom Reference Note */}
-            <Text style={styles.bottomReferenceNote}>
-              Hospital data is for reference. Always verify before visiting.
-            </Text>
-          </>
-        )}
-      </ScrollView>
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+      />
     </View>
   );
 }
@@ -302,125 +572,180 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0284C7',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 52 : 44,
-    paddingBottom: 16,
+    paddingTop: Platform.OS === 'android' ? 44 : 54,
+    paddingBottom: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   backButtonText: {
-    color: '#FFFFFF',
     fontSize: 20,
+    color: '#0F172A',
     fontWeight: 'bold',
+    marginTop: -2,
   },
   headerTitleCol: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 8,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontWeight: '700',
+    color: '#0F172A',
   },
   headerSubtitle: {
     fontSize: 12,
-    color: '#E0F2FE',
+    color: '#0284C7',
     fontWeight: '500',
     marginTop: 2,
   },
-  scrollContent: {
+  flatListContent: {
     paddingHorizontal: 16,
+    paddingBottom: 32,
+  },
+  listHeaderContainer: {
     paddingTop: 16,
-    paddingBottom: 36,
+  },
+  modeSwitcherContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 12,
+  },
+  modeTab: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+  },
+  modeTabActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  modeTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  modeTabTextActive: {
+    color: '#0284C7',
+    fontWeight: '700',
   },
   filterActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 12,
+  },
+  manualPmjayRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 12,
   },
   locationDeniedAlert: {
-    backgroundColor: '#FFFBEB',
+    backgroundColor: '#FEF3C7',
     borderWidth: 1,
     borderColor: '#FDE68A',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 14,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
   },
   locationDeniedText: {
-    color: '#92400E',
     fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 17,
+    color: '#92400E',
+    fontWeight: '500',
   },
   resultsCountRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 12,
     paddingHorizontal: 2,
   },
   resultsCountText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#64748B',
   },
   filterActiveTag: {
-    backgroundColor: '#FAF5FF',
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
+    backgroundColor: '#E0F2FE',
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
   },
   filterActiveText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#7C3AED',
+    fontWeight: '600',
+    color: '#0284C7',
   },
   loadingArea: {
-    paddingVertical: 40,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
   },
   loadingText: {
-    color: '#0284C7',
+    marginTop: 12,
+    fontSize: 14,
+    color: '#64748B',
+  },
+  loadingMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 8,
+  },
+  loadingMoreText: {
     fontSize: 13,
-    fontWeight: '600',
-    marginTop: 10,
+    color: '#0284C7',
+    fontWeight: '500',
+  },
+  footerContainer: {
+    paddingTop: 16,
+    paddingBottom: 24,
   },
   emptyContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 24,
     alignItems: 'center',
-    marginVertical: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
   },
   emptyEmojiCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#F0F9FF',
-    justifyContent: 'center',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#E0F2FE',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   emptyEmoji: {
-    fontSize: 28,
+    fontSize: 32,
   },
   emptyTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#0F172A',
     marginBottom: 6,
+    textAlign: 'center',
   },
   emptySupporting: {
     fontSize: 13,
@@ -430,22 +755,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyActionButton: {
-    backgroundColor: '#7C3AED',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
   emptyActionText: {
-    color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '700',
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   bottomReferenceNote: {
-    color: '#94A3B8',
-    fontSize: 11,
     textAlign: 'center',
-    marginTop: 14,
-    marginBottom: 10,
+    fontSize: 11,
+    color: '#94A3B8',
     fontStyle: 'italic',
+    paddingHorizontal: 16,
   },
 });

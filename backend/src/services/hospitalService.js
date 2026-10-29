@@ -15,9 +15,14 @@ const hospitalService = {
       longitude,
       radius,
       city,
+      district,
+      sub_district,
+      subDistrict,
       state,
       search,
-      pmjay
+      pmjay,
+      page,
+      limit
     } = queryParams;
 
     // Validate latitude & longitude if provided
@@ -77,17 +82,72 @@ const hospitalService = {
     }
 
     // Query hospitals via model
-    const hospitals = await Hospital.search({
+    const result = await Hospital.search({
       latitude: lat,
       longitude: lng,
       radiusKm,
       city: city ? String(city).trim() : null,
+      district: district ? String(district).trim() : null,
+      subDistrict: (sub_district || subDistrict) ? String(sub_district || subDistrict).trim() : null,
       state: state ? String(state).trim() : null,
       search: search ? String(search).trim() : null,
-      pmjay: pmjayFilter
+      pmjay: pmjayFilter,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20
     });
 
-    return hospitals;
+    return result;
+  },
+
+  /**
+   * Get administrative hierarchy (States, Districts, Sub-districts)
+   */
+  getLocations(stateCode = null, districtName = null) {
+    const adminData = Hospital.getAdministrativeLocations();
+
+    // If districtName provided, return sub-districts for that district
+    if (districtName) {
+      const stateObj = adminData.states.find(s =>
+        !stateCode || s.code.toLowerCase() === stateCode.toLowerCase() || s.name.toLowerCase() === stateCode.toLowerCase()
+      );
+      if (!stateObj) {
+        return { success: true, subDistricts: [] };
+      }
+      const distObj = stateObj.districts.find(d =>
+        d.name.toLowerCase() === districtName.toLowerCase() ||
+        (d.aliases && d.aliases.some(a => a.toLowerCase() === districtName.toLowerCase()))
+      );
+      return {
+        success: true,
+        district: distObj ? distObj.name : districtName,
+        subDistricts: distObj ? distObj.subDistricts : []
+      };
+    }
+
+    // If stateCode provided, return districts for that state
+    if (stateCode) {
+      const stateObj = adminData.states.find(s =>
+        s.code.toLowerCase() === stateCode.toLowerCase() || s.name.toLowerCase() === stateCode.toLowerCase()
+      );
+      return {
+        success: true,
+        state: stateObj ? stateObj.name : stateCode,
+        isSupported: stateObj ? Boolean(stateObj.isSupported) : false,
+        districts: stateObj ? stateObj.districts.map(d => ({ name: d.name, subDistrictsCount: d.subDistricts.length })) : []
+      };
+    }
+
+    // Return all states
+    return {
+      success: true,
+      country: adminData.country,
+      states: adminData.states.map(s => ({
+        code: s.code,
+        name: s.name,
+        isSupported: s.isSupported,
+        districtCount: s.districts.length
+      }))
+    };
   },
 
   /**

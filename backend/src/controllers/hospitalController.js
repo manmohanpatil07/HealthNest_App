@@ -9,18 +9,24 @@ const hospitalController = {
    * Query params:
    *  - latitude, longitude (optional, for proximity search)
    *  - radius (optional, in km, defaults to 50)
-   *  - city, state (optional, for location filter)
+   *  - state, district, sub_district, city (optional, administrative location filters)
    *  - search (optional, text search on name/address)
    *  - pmjay (optional, boolean: true/false)
+   *  - page (optional, defaults to 1)
+   *  - limit (optional, defaults to 20)
    */
   async getHospitals(req, res) {
     try {
-      const hospitals = await hospitalService.searchHospitals(req.query);
+      const result = await hospitalService.searchHospitals(req.query);
 
       return res.status(200).json({
         success: true,
-        count: hospitals.length,
-        hospitals
+        count: result.hospitals.length,
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.totalPages,
+        hospitals: result.hospitals
       });
     } catch (error) {
       if (error.statusCode) {
@@ -34,6 +40,27 @@ const hospitalController = {
       return res.status(500).json({
         success: false,
         message: 'Server error retrieving hospitals. Please try again later.'
+      });
+    }
+  },
+
+  /**
+   * GET /api/hospitals/locations
+   * Query params:
+   *  - state (optional, state code or name)
+   *  - district (optional, district name)
+   * Returns cascading administrative choices (Country -> States -> Districts -> Sub-districts)
+   */
+  getLocations(req, res) {
+    try {
+      const { state, district } = req.query;
+      const data = hospitalService.getLocations(state, district);
+      return res.status(200).json(data);
+    } catch (error) {
+      console.error('[hospitalController.getLocations] Error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error retrieving administrative locations.'
       });
     }
   },
@@ -62,7 +89,7 @@ const hospitalController = {
       console.error('[hospitalController.getHospitalById] Error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Server error retrieving hospital details.'
+        message: 'Server error retrieving hospital details. Please try again later.'
       });
     }
   }
