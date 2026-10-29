@@ -10,11 +10,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { providerService } from '../../services/providerService';
 import { ConfirmationDialog } from '../../components';
 
 export default function ProviderDashboardScreen({ navigation }) {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const [providerData, setProviderData] = useState(user || null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -66,7 +68,7 @@ export default function ProviderDashboardScreen({ navigation }) {
         <View style={styles.heroSection}>
           <View style={styles.headerTop}>
             <View>
-              <Text style={styles.roleHeader}>Healthcare Provider</Text>
+              <Text style={styles.roleHeader}>{t('provider.roleHeader')}</Text>
               <Text style={styles.providerNameText}>{providerName}</Text>
               <Text style={styles.clinicSubtitle}>{providerType} · {clinicName}</Text>
             </View>
@@ -92,13 +94,13 @@ export default function ProviderDashboardScreen({ navigation }) {
                 <Text style={styles.shieldIcon}>🛡️</Text>
               </View>
               <View style={styles.sessionTextCol}>
-                <Text style={styles.sessionTitle}>Secure Provider Session</Text>
-                <Text style={styles.sessionSubtext}>All access is logged and consent-protected</Text>
+                <Text style={styles.sessionTitle}>{t('provider.secureSession')}</Text>
+                <Text style={styles.sessionSubtext}>{t('provider.secureSessionSub')}</Text>
               </View>
             </View>
             <View style={styles.activeBadge}>
               <View style={styles.activeDot} />
-              <Text style={styles.activeBadgeText}>Active</Text>
+              <Text style={styles.activeBadgeText}>{t('common.active')}</Text>
             </View>
           </TouchableOpacity>
 
@@ -112,8 +114,8 @@ export default function ProviderDashboardScreen({ navigation }) {
               <Text style={styles.ctaIcon}>📷</Text>
             </View>
             <View style={styles.ctaTextArea}>
-              <Text style={styles.ctaTitle}>Scan Patient QR</Text>
-              <Text style={styles.ctaSubtitle}>Access authorized patient health information</Text>
+              <Text style={styles.ctaTitle}>{t('provider.scanPatientQR')}</Text>
+              <Text style={styles.ctaSubtitle}>{t('provider.scanQRSub')}</Text>
             </View>
             <View style={styles.ctaArrow}>
               <Text style={styles.ctaArrowText}>→</Text>
@@ -123,21 +125,21 @@ export default function ProviderDashboardScreen({ navigation }) {
           {/* Info Cards (Two-column layout) */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Today's Scans</Text>
+              <Text style={styles.statLabel}>{t('provider.todaysScans')}</Text>
               <Text style={styles.statNumber}>3</Text>
-              <Text style={styles.statFooter}>Patient records accessed</Text>
+              <Text style={styles.statFooter}>{t('provider.patientRecordsAccessed')}</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Provider ID</Text>
+              <Text style={styles.statLabel}>{t('provider.providerId')}</Text>
               <Text style={[styles.statNumber, { fontSize: 20 }]}>{providerId}</Text>
-              <Text style={styles.statFooter}>Verified provider</Text>
+              <Text style={styles.statFooter}>{t('common.verifiedProvider')}</Text>
             </View>
           </View>
 
           {/* Recent Activity */}
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>RECENT ACTIVITY</Text>
-            <Text style={styles.sectionCount}>Today</Text>
+            <Text style={styles.sectionTitle}>{t('provider.recentActivity')}</Text>
+            <Text style={styles.sectionCount}>{t('common.today')}</Text>
           </View>
 
           <View style={styles.activityList}>
@@ -150,7 +152,7 @@ export default function ProviderDashboardScreen({ navigation }) {
                 <Text style={styles.activityDetail}>Patient record · 10:32 AM</Text>
               </View>
               <View style={styles.statusSuccessBadge}>
-                <Text style={styles.statusSuccessText}>Accessed</Text>
+                <Text style={styles.statusSuccessText}>{t('provider.accessed')}</Text>
               </View>
             </View>
 
@@ -163,7 +165,7 @@ export default function ProviderDashboardScreen({ navigation }) {
                 <Text style={styles.activityDetail}>Patient record · 9:15 AM</Text>
               </View>
               <View style={styles.statusSuccessBadge}>
-                <Text style={styles.statusSuccessText}>Accessed</Text>
+                <Text style={styles.statusSuccessText}>{t('provider.accessed')}</Text>
               </View>
             </View>
 
@@ -176,16 +178,16 @@ export default function ProviderDashboardScreen({ navigation }) {
                 <Text style={styles.activityDetail}>Patient record · Yesterday</Text>
               </View>
               <View style={styles.statusSuccessBadge}>
-                <Text style={styles.statusSuccessText}>Accessed</Text>
+                <Text style={styles.statusSuccessText}>{t('provider.accessed')}</Text>
               </View>
             </View>
           </View>
 
           {/* Read-only Disclaimer */}
           <View style={styles.disclaimerCard}>
-            <Text style={styles.disclaimerHeading}>📋 Read-only Access</Text>
+            <Text style={styles.disclaimerHeading}>{t('provider.readOnlyAccess')}</Text>
             <Text style={styles.disclaimerBody}>
-              You can only view patient information. All access is logged and requires patient QR authorization.
+              {t('provider.readOnlyDesc')}
             </Text>
           </View>
 
@@ -195,7 +197,7 @@ export default function ProviderDashboardScreen({ navigation }) {
             onPress={() => setLogoutModalVisible(true)}
           >
             <Text style={styles.logoutButtonIcon}>🚪</Text>
-            <Text style={styles.logoutButtonText}>Logout</Text>
+            <Text style={styles.logoutButtonText}>{t('common.logout')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

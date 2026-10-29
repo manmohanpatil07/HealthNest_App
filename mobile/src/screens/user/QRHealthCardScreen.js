@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
 import userService from '../../services/userService';
+import { useLanguage } from '../../context/LanguageContext';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -46,6 +47,7 @@ function formatExpiry(dateStr) {
 
 export default function QRHealthCardScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { t } = useLanguage();
 
   // State
   const [data, setData] = useState(null);
@@ -256,39 +258,37 @@ export default function QRHealthCardScreen({ navigation }) {
 
           {/* Security Information Card: Amber left border */}
           <View style={styles.securityCard}>
-            <Text style={styles.securityHeading}>🔐 Secure Access Token</Text>
+            <Text style={styles.securityHeading}>🔐 {t('qrCard.activeToken')}</Text>
             <Text style={styles.securityBody}>
-              This QR contains a secure access token — not your medical data.
-              Healthcare providers scan this to request access. You control what
-              they can see.
+              {t('qrCard.shareNotice')}
             </Text>
           </View>
 
           {/* Information Shared On Scan */}
           <View style={styles.sharedSection}>
             <Text style={styles.sharedSectionTitle}>
-              INFORMATION SHARED ON SCAN
+              {t('qrCard.accessControls')}
             </Text>
 
             <View style={styles.sharedRow}>
               <Text style={styles.greenCheck}>✓</Text>
-              <Text style={styles.sharedLabel}>Basic profile (name, blood group)</Text>
+              <Text style={styles.sharedLabel}>{t('profile.fullName')}, {t('profile.bloodGroup')}</Text>
             </View>
             <View style={styles.sharedRow}>
               <Text style={styles.greenCheck}>✓</Text>
-              <Text style={styles.sharedLabel}>Emergency contact</Text>
+              <Text style={styles.sharedLabel}>{t('profile.emergencyContact')}</Text>
             </View>
             <View style={styles.sharedRow}>
               <Text style={styles.greenCheck}>✓</Text>
-              <Text style={styles.sharedLabel}>Active allergies (if recorded)</Text>
+              <Text style={styles.sharedLabel}>{t('qrCard.allowRecords')}</Text>
             </View>
             <View style={styles.sharedRow}>
               <Text style={styles.greenCheck}>✓</Text>
-              <Text style={styles.sharedLabel}>Current health records (read-only)</Text>
+              <Text style={styles.sharedLabel}>{t('qrCard.allowDocs')}</Text>
             </View>
             <View style={styles.sharedRow}>
               <Text style={styles.greenCheck}>✓</Text>
-              <Text style={styles.sharedLabel}>Vaccination history</Text>
+              <Text style={styles.sharedLabel}>{t('qrCard.allowVaccines')}</Text>
             </View>
 
             <TouchableOpacity
@@ -296,7 +296,7 @@ export default function QRHealthCardScreen({ navigation }) {
               onPress={() => setPermissionModalVisible(true)}
             >
               <Text style={styles.managePermissionsText}>
-                Manage Access Permissions →
+                {t('qrCard.accessControls')} →
               </Text>
             </TouchableOpacity>
           </View>

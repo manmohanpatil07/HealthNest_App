@@ -3,25 +3,24 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import ProviderDashboardScreen from '../screens/provider/ProviderDashboardScreen';
 import ScanQRScreen from '../screens/provider/ScanQRScreen';
 import { MaterialIcons } from '@expo/vector-icons';
-
-
-// Bottom tab navigator for Provider module – follows UI_INSTRUCTIONS colors and spacing.
-// Includes only the destinations that actually exist in the codebase.
+import { useLanguage } from '../context/LanguageContext';
 
 const Tab = createBottomTabNavigator();
 
 export default function ProviderTabNavigator() {
+  const { t } = useLanguage();
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#F8FAFC', // neutral surface per UI_INSTRUCTIONS
+          backgroundColor: '#F8FAFC',
           borderTopColor: '#E2E8F0',
           height: 60,
         },
-        tabBarActiveTintColor: '#0284C7', // primary
-        tabBarInactiveTintColor: '#475569', // secondary text
+        tabBarActiveTintColor: '#0284C7',
+        tabBarInactiveTintColor: '#475569',
         tabBarLabelStyle: { fontSize: 12, paddingBottom: 4 },
       }}
     >
@@ -29,7 +28,7 @@ export default function ProviderTabNavigator() {
         name="Dashboard"
         component={ProviderDashboardScreen}
         options={{
-          tabBarLabel: 'Dashboard',
+          tabBarLabel: t('nav.dashboard'),
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="dashboard" size={size} color={color} />
           ),
@@ -39,7 +38,7 @@ export default function ProviderTabNavigator() {
         name="ScanQR"
         component={ScanQRScreen}
         options={{
-          tabBarLabel: 'Scan',
+          tabBarLabel: t('nav.scan'),
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="qr-code-scanner" size={size} color={color} />
           ),
@@ -48,4 +47,3 @@ export default function ProviderTabNavigator() {
     </Tab.Navigator>
   );
 }
-

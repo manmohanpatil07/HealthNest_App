@@ -18,8 +18,10 @@ import {
   ErrorMessage,
 } from '../../components';
 import { hospitalService } from '../../services/hospitalService';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function HospitalFinderScreen({ navigation }) {
+  const { t } = useLanguage();
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -177,7 +179,7 @@ export default function HospitalFinderScreen({ navigation }) {
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleCol}>
-          <Text style={styles.headerTitle}>Hospital Finder</Text>
+          <Text style={styles.headerTitle}>{t('hospital.title')}</Text>
           <Text style={styles.headerSubtitle}>{activeLocationName}</Text>
         </View>
         <View style={{ width: 36 }} />
@@ -196,7 +198,7 @@ export default function HospitalFinderScreen({ navigation }) {
           onChangeText={setSearchTerm}
           onSubmit={handleSearchSubmit}
           onClear={handleClearSearch}
-          placeholder="Search hospitals or areas..."
+          placeholder={t('hospital.searchPlaceholder')}
         />
 
         {/* Filter/Action Row */}
@@ -213,7 +215,7 @@ export default function HospitalFinderScreen({ navigation }) {
         {locationDenied ? (
           <View style={styles.locationDeniedAlert}>
             <Text style={styles.locationDeniedText}>
-              📍 Location permission denied. Search by city or area name above.
+              📍 {t('hospital.locationDenied')}
             </Text>
           </View>
         ) : null}

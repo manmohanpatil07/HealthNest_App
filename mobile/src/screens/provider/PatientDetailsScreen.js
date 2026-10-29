@@ -6,8 +6,10 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking } from 'react-native';
 import { providerService } from '../../services/providerService';
 import { formatDate } from '../../utils';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function PatientDetailsScreen({ route, navigation }) {
+  const { t } = useLanguage();
   const { patient, healthRecords, documents, vaccinations, accessInfo, token } = route.params || {};
 
   const [loading, setLoading] = useState(!patient && !!token);
@@ -47,21 +49,21 @@ export default function PatientDetailsScreen({ route, navigation }) {
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backTxt}>←</Text>
         </Pressable>
-        <Text style={styles.title}>Patient Details</Text>
+        <Text style={styles.title}>{t('provider.patientDetailsTitle')}</Text>
       </View>
 
       {/* Profile Card */}
       <View style={styles.card}>
         <Text style={styles.name}>{p?.fullName ?? 'Unnamed Patient'}</Text>
-        <Text style={styles.row}>DOB: {p?.dob ? formatDate(p.dob) : '—'}</Text>
-        <Text style={styles.row}>Blood Group: {p?.blood_group ?? '—'}</Text>
+        <Text style={styles.row}>{t('profile.dob')}: {p?.dob ? formatDate(p.dob) : '—'}</Text>
+        <Text style={styles.row}>{t('profile.bloodGroup')}: {p?.blood_group ?? '—'}</Text>
         {p?.emergency_contact && (
-          <Text style={styles.row}>Emergency: {p.emergency_contact}</Text>
+          <Text style={styles.row}>{t('profile.emergencyContact')}: {p.emergency_contact}</Text>
         )}
       </View>
 
       {/* Sections */}
-      <Section title="Health Records" emptyMsg="No health records found.">
+      <Section title={t('records.title')} emptyMsg={t('records.noRecordsFound')}>
         {hr?.map((r) => (
           <View key={r.id} style={styles.item}>
             <Text style={styles.itemTitle}>{r.title}</Text>
@@ -71,7 +73,7 @@ export default function PatientDetailsScreen({ route, navigation }) {
         ))}
       </Section>
 
-      <Section title="Documents" emptyMsg="No documents uploaded.">
+      <Section title={t('documents.title')} emptyMsg={t('documents.noDocsTitle')}>
         {docs?.map((d) => (
           <Pressable
             key={d.id}
@@ -80,16 +82,16 @@ export default function PatientDetailsScreen({ route, navigation }) {
           >
             <Text style={styles.itemTitle}>{d.document_name}</Text>
             <Text style={styles.itemMeta}>{d.document_type}</Text>
-            <Text style={styles.link}>Tap to view</Text>
+            <Text style={styles.link}>{t('common.view')}</Text>
           </Pressable>
         ))}
       </Section>
 
-      <Section title="Vaccinations" emptyMsg="No vaccination records.">
+      <Section title={t('vaccine.title')} emptyMsg={t('vaccine.noCompleted')}>
         {vxs?.map((v) => (
           <View key={v.id} style={styles.item}>
             <Text style={styles.itemTitle}>{v.vaccine_name}</Text>
-            <Text style={styles.itemMeta}>Given: {formatDate(v.administered_at)}</Text>
+            <Text style={styles.itemMeta}>{t('vaccine.administeredOn')}: {formatDate(v.administered_at)}</Text>
           </View>
         ))}
       </Section>

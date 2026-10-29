@@ -12,9 +12,11 @@ import { COLORS } from '../../constants';
 import { AppInput, AppButton, ErrorMessage } from '../../components';
 import { authService } from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
+  const { t, language, setLanguage } = useLanguage();
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -72,12 +74,15 @@ export default function LoginScreen({ navigation }) {
             <View style={styles.logoBadge}>
               <Text style={styles.logoBadgeText}>HN</Text>
             </View>
-            <TouchableOpacity style={styles.langSelector}>
-              <Text style={styles.langText}>🌐 English</Text>
+            <TouchableOpacity
+              style={styles.langSelector}
+              onPress={() => setLanguage(language === 'en' ? 'mr' : 'en')}
+            >
+              <Text style={styles.langText}>🌐 {language === 'en' ? 'English' : 'मराठी'}</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.welcomeTitle}>Welcome back 👋</Text>
-          <Text style={styles.welcomeSubtitle}>Sign in to your health account</Text>
+          <Text style={styles.welcomeTitle}>{t('auth.welcomeBack')} 👋</Text>
+          <Text style={styles.welcomeSubtitle}>{t('auth.loginSubtitle')}</Text>
         </View>
 
         {/* Rounded Top-Sheet Form Container */}
@@ -85,8 +90,8 @@ export default function LoginScreen({ navigation }) {
           {error ? <ErrorMessage message={error} /> : null}
 
           <AppInput
-            label="Mobile Number"
-            placeholder="Enter 10-digit mobile number"
+            label={t('auth.mobileNumber')}
+            placeholder={t('auth.mobilePlaceholder')}
             value={mobile}
             onChangeText={(text) => {
               setMobile(text);
@@ -98,8 +103,8 @@ export default function LoginScreen({ navigation }) {
           />
 
           <AppInput
-            label="Password"
-            placeholder="Enter your password"
+            label={t('auth.password')}
+            placeholder={t('auth.passwordPlaceholder')}
             value={password}
             onChangeText={(text) => {
               setPassword(text);
@@ -110,11 +115,11 @@ export default function LoginScreen({ navigation }) {
           />
 
           <TouchableOpacity style={styles.forgotBtn}>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
+            <Text style={styles.forgotText}>{t('auth.forgotPassword')}</Text>
           </TouchableOpacity>
 
           <AppButton
-            title="Sign In"
+            title={t('auth.loginBtn')}
             variant="primary"
             onPress={handleSignIn}
             loading={loading}
@@ -133,17 +138,17 @@ export default function LoginScreen({ navigation }) {
           />
 
           <View style={styles.registerRow}>
-            <Text style={styles.noAccountText}>Don't have an account? </Text>
+            <Text style={styles.noAccountText}>{t('auth.noAccount')} </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.createAccountText}>Create Account</Text>
+              <Text style={styles.createAccountText}>{t('auth.createAccount')}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.providerSection}>
             <View style={styles.thinDivider} />
-            <Text style={styles.providerPrompt}>Are you a Healthcare Provider?</Text>
+            <Text style={styles.providerPrompt}>{t('auth.providerPortalLink')}</Text>
             <AppButton
-              title="Provider Login"
+              title={t('auth.providerLoginBtn')}
               variant="secondary"
               onPress={() => navigation.navigate('ProviderLogin')}
             />

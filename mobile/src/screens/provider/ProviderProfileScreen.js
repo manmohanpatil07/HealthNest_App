@@ -12,9 +12,11 @@ import { COLORS } from '../../constants';
 import { LoadingSpinner, ErrorMessage, ConfirmationDialog } from '../../components';
 import { providerService } from '../../services/providerService';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function ProviderProfileScreen({ navigation }) {
   const { user: authUser, logout } = useAuth();
+  const { t } = useLanguage();
   const [provider, setProvider] = useState(authUser || null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -66,7 +68,7 @@ export default function ProviderProfileScreen({ navigation }) {
         >
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Provider Profile</Text>
+        <Text style={styles.headerTitle}>{t('provider.providerProfileTitle')}</Text>
         <TouchableOpacity
           style={styles.headerSettingsBtn}
           onPress={() => navigation.navigate('Settings')}
@@ -104,7 +106,7 @@ export default function ProviderProfileScreen({ navigation }) {
 
               <View style={styles.badgeRow}>
                 <View style={styles.verifiedBadge}>
-                  <Text style={styles.verifiedBadgeText}>Verified Provider ✓</Text>
+                  <Text style={styles.verifiedBadgeText}>{t('common.verifiedProvider')}</Text>
                 </View>
                 <View style={styles.idBadge}>
                   <Text style={styles.idBadgeText}>{providerId}</Text>
@@ -114,55 +116,55 @@ export default function ProviderProfileScreen({ navigation }) {
 
             {/* Provider Details Card */}
             <View style={styles.card}>
-              <Text style={styles.sectionLabel}>PROVIDER DETAILS</Text>
+              <Text style={styles.sectionLabel}>{t('provider.providerDetails')}</Text>
 
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Full Name</Text>
+                <Text style={styles.fieldLabel}>{t('profile.fullName')}</Text>
                 <Text style={styles.fieldValue}>{fullName}</Text>
               </View>
 
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Provider Type</Text>
+                <Text style={styles.fieldLabel}>{t('auth.providerType')}</Text>
                 <Text style={styles.fieldValue}>{providerType}</Text>
               </View>
 
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Clinic Name</Text>
+                <Text style={styles.fieldLabel}>{t('auth.clinicName')}</Text>
                 <Text style={styles.fieldValue}>{clinicName}</Text>
               </View>
 
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Mobile Number</Text>
+                <Text style={styles.fieldLabel}>{t('profile.mobileNumber')}</Text>
                 <Text style={styles.fieldValue}>{mobile}</Text>
               </View>
 
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Email</Text>
+                <Text style={styles.fieldLabel}>{t('profile.email')}</Text>
                 <Text style={styles.fieldValue}>{email}</Text>
               </View>
 
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>City</Text>
+                <Text style={styles.fieldLabel}>{t('profile.city')}</Text>
                 <Text style={styles.fieldValue}>{city}</Text>
               </View>
 
               <View style={[styles.fieldRow, styles.noBorder]}>
-                <Text style={styles.fieldLabel}>State</Text>
+                <Text style={styles.fieldLabel}>{t('profile.state')}</Text>
                 <Text style={styles.fieldValue}>{state}</Text>
               </View>
             </View>
 
             {/* Settings Quick Access Card */}
             <View style={styles.card}>
-              <Text style={styles.sectionLabel}>PREFERENCES & SECURITY</Text>
+              <Text style={styles.sectionLabel}>{t('profile.preferencesSecurity')}</Text>
               <TouchableOpacity
                 style={styles.actionRow}
                 onPress={() => navigation.navigate('Settings')}
               >
                 <Text style={styles.actionIcon}>⚙️</Text>
                 <View style={styles.actionContent}>
-                  <Text style={styles.actionTitle}>Settings & Permissions</Text>
-                  <Text style={styles.actionSubtitle}>Manage app preferences & device permissions</Text>
+                  <Text style={styles.actionTitle}>{t('profile.settingsPermissions')}</Text>
+                  <Text style={styles.actionSubtitle}>{t('profile.settingsSub')}</Text>
                 </View>
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
@@ -170,9 +172,9 @@ export default function ProviderProfileScreen({ navigation }) {
 
             {/* Verified Provider Note Card */}
             <View style={styles.noteCard}>
-              <Text style={styles.noteHeading}>📋 Provider Account</Text>
+              <Text style={styles.noteHeading}>{t('provider.providerAccountNote')}</Text>
               <Text style={styles.noteBody}>
-                Your account is verified. All patient access requires valid QR consent and is permanently logged for audit.
+                {t('provider.providerAccountDesc')}
               </Text>
             </View>
 
@@ -181,7 +183,7 @@ export default function ProviderProfileScreen({ navigation }) {
               style={styles.logoutBtn}
               onPress={() => setShowLogoutDialog(true)}
             >
-              <Text style={styles.logoutBtnText}>Logout</Text>
+              <Text style={styles.logoutBtnText}>{t('common.logout')}</Text>
             </TouchableOpacity>
           </>
         )}

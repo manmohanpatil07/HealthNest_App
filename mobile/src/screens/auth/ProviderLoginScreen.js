@@ -12,9 +12,11 @@ import { COLORS } from '../../constants';
 import { AppInput, AppButton, ErrorMessage } from '../../components';
 import { providerService } from '../../services/providerService';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function ProviderLoginScreen({ navigation }) {
   const { login } = useAuth();
+  const { t, language, setLanguage } = useLanguage();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -68,17 +70,17 @@ export default function ProviderLoginScreen({ navigation }) {
               <View style={styles.doctorBadge}>
                 <Text style={styles.doctorBadgeIcon}>👨‍⚕️</Text>
               </View>
-              <Text style={styles.portalTag}>PROVIDER PORTAL</Text>
+              <Text style={styles.portalTag}>{t('provider.portalTitle')}</Text>
             </View>
             <TouchableOpacity 
               style={styles.backBtn}
-              onPress={() => navigation.navigate('Login')}
+              onPress={() => setLanguage(language === 'en' ? 'mr' : 'en')}
             >
-              <Text style={styles.backBtnText}>Patient Login →</Text>
+              <Text style={styles.backBtnText}>🌐 {language === 'en' ? 'English' : 'मराठी'}</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.welcomeTitle}>Healthcare Provider</Text>
-          <Text style={styles.welcomeSubtitle}>Doctors & Clinic Staff Sign-In</Text>
+          <Text style={styles.welcomeTitle}>{t('provider.roleHeader')}</Text>
+          <Text style={styles.welcomeSubtitle}>{t('auth.providerLoginSubtitle')}</Text>
         </View>
 
         {/* Rounded Top-Sheet Form Container */}
@@ -86,14 +88,14 @@ export default function ProviderLoginScreen({ navigation }) {
           <View style={styles.infoBanner}>
             <Text style={styles.infoBannerIcon}>🔒</Text>
             <Text style={styles.infoBannerText}>
-              Authorized personnel only. All patient records access is logged and consent-protected.
+              {t('provider.secureSessionSub')}
             </Text>
           </View>
 
           {error ? <ErrorMessage message={error} /> : null}
 
           <AppInput
-            label="Mobile Number or Email"
+            label={t('auth.mobileNumber')}
             placeholder="e.g. 9876543210 or doctor@clinic.com"
             value={identifier}
             onChangeText={(text) => {
@@ -105,8 +107,8 @@ export default function ProviderLoginScreen({ navigation }) {
           />
 
           <AppInput
-            label="Password"
-            placeholder="Enter your provider password"
+            label={t('auth.password')}
+            placeholder={t('auth.passwordPlaceholder')}
             value={password}
             onChangeText={(text) => {
               setPassword(text);
@@ -119,23 +121,23 @@ export default function ProviderLoginScreen({ navigation }) {
           <View style={styles.spacer} />
 
           <AppButton
-            title="Sign In to Provider Portal"
+            title={t('auth.providerLoginBtn')}
             variant="secondary"
             onPress={handleProviderSignIn}
             loading={loading}
           />
 
           <View style={styles.providerRegisterRow}>
-            <Text style={styles.userPromptText}>New healthcare provider? </Text>
+            <Text style={styles.userPromptText}>{t('auth.noAccount')} </Text>
             <TouchableOpacity onPress={() => navigation.navigate('ProviderRegister')}>
-              <Text style={styles.providerRegisterLink}>Create Provider Account</Text>
+              <Text style={styles.providerRegisterLink}>{t('auth.registerAsProvider')}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.userLoginRow}>
-            <Text style={styles.userPromptText}>Looking for patient access? </Text>
+            <Text style={styles.userPromptText}>{t('auth.userPortalLink')} </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.userLoginLink}>User Sign In</Text>
+              <Text style={styles.userLoginLink}>{t('auth.loginBtn')}</Text>
             </TouchableOpacity>
           </View>
         </View>

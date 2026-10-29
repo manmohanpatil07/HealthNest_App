@@ -15,14 +15,15 @@ import { Camera } from 'expo-camera';
 import { COLORS } from '../../constants';
 import { ConfirmationDialog } from '../../components';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function SettingsScreen({ navigation }) {
   const { role, logout } = useAuth();
+  const { language, setLanguage, t } = useLanguage();
   const isProvider = role === 'healthcare_provider';
 
   // State
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
-  const [language, setLanguage] = useState('English'); // English / Marathi
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   // Permission statuses: 'granted' | 'denied' | 'undetermined' | 'checking'
@@ -31,7 +32,6 @@ export default function SettingsScreen({ navigation }) {
 
   const checkPermissions = async () => {
     try {
-      // Check Camera Permission
       if (Camera && Camera.getCameraPermissionsAsync) {
         const cam = await Camera.getCameraPermissionsAsync();
         setCameraStatus(cam.status);
@@ -44,7 +44,6 @@ export default function SettingsScreen({ navigation }) {
     }
 
     try {
-      // Check Location Permission
       if (Location && Location.getForegroundPermissionsAsync) {
         const loc = await Location.getForegroundPermissionsAsync();
         setLocationStatus(loc.status);
@@ -67,9 +66,9 @@ export default function SettingsScreen({ navigation }) {
         const res = await Camera.requestCameraPermissionsAsync();
         setCameraStatus(res.status);
         if (res.status === 'granted') {
-          Alert.alert('Permission Granted', 'Camera access has been enabled for QR scanning.');
+          Alert.alert(t('common.success'), t('dialog.cameraRequiredMsg'));
         } else if (!res.canAskAgain) {
-          showOpenSettingsAlert('Camera');
+          showOpenSettingsAlert(t('settings.camera'));
         }
       } else {
         openSystemSettings();
@@ -86,9 +85,9 @@ export default function SettingsScreen({ navigation }) {
         const res = await Location.requestForegroundPermissionsAsync();
         setLocationStatus(res.status);
         if (res.status === 'granted') {
-          Alert.alert('Permission Granted', 'Location access has been enabled for Hospital Finder.');
+          Alert.alert(t('common.success'), t('dialog.locationBlockedMsg'));
         } else if (!res.canAskAgain) {
-          showOpenSettingsAlert('Location');
+          showOpenSettingsAlert(t('settings.location'));
         }
       } else {
         openSystemSettings();
@@ -101,11 +100,11 @@ export default function SettingsScreen({ navigation }) {
 
   const showOpenSettingsAlert = (permName) => {
     Alert.alert(
-      `${permName} Permission Required`,
-      `${permName} permission is blocked in system settings. Please enable it in device settings to use this feature.`,
+      `${permName}`,
+      t('dialog.cameraBlockedMsg'),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: openSystemSettings },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('dialog.openSettings'), onPress: openSystemSettings },
       ]
     );
   };
@@ -127,20 +126,20 @@ export default function SettingsScreen({ navigation }) {
     if (status === 'granted') {
       return (
         <View style={[styles.statusBadge, styles.statusBadgeGranted]}>
-          <Text style={[styles.statusBadgeText, styles.statusTextGranted]}>Allowed ✓</Text>
+          <Text style={[styles.statusBadgeText, styles.statusTextGranted]}>{t('common.allowed')}</Text>
         </View>
       );
     }
     if (status === 'denied') {
       return (
         <View style={[styles.statusBadge, styles.statusBadgeDenied]}>
-          <Text style={[styles.statusBadgeText, styles.statusTextDenied]}>Denied ✕</Text>
+          <Text style={[styles.statusBadgeText, styles.statusTextDenied]}>{t('common.denied')}</Text>
         </View>
       );
     }
     return (
       <View style={[styles.statusBadge, styles.statusBadgePending]}>
-        <Text style={[styles.statusBadgeText, styles.statusTextPending]}>Not Set</Text>
+        <Text style={[styles.statusBadgeText, styles.statusTextPending]}>{t('common.notSet')}</Text>
       </View>
     );
   };
@@ -156,14 +155,14 @@ export default function SettingsScreen({ navigation }) {
         >
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={styles.headerTitle}>{t('settings.title')}</Text>
         <View style={{ width: 36 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Account Section */}
         <View style={styles.card}>
-          <Text style={styles.sectionLabel}>ACCOUNT</Text>
+          <Text style={styles.sectionLabel}>{t('settings.account')}</Text>
           <TouchableOpacity
             style={styles.row}
             onPress={() => {
@@ -176,9 +175,11 @@ export default function SettingsScreen({ navigation }) {
           >
             <Text style={styles.rowIcon}>👤</Text>
             <View style={styles.rowContent}>
-              <Text style={styles.rowTitle}>{isProvider ? 'Provider Profile' : 'Edit Profile'}</Text>
+              <Text style={styles.rowTitle}>
+                {isProvider ? t('settings.providerProfileTitle') : t('settings.userProfileTitle')}
+              </Text>
               <Text style={styles.rowSubtitle}>
-                {isProvider ? 'View provider credentials & details' : 'Update personal health information'}
+                {isProvider ? t('settings.providerProfileSub') : t('settings.userProfileSub')}
               </Text>
             </View>
             <Text style={styles.chevron}>›</Text>
@@ -187,31 +188,31 @@ export default function SettingsScreen({ navigation }) {
 
         {/* Preferences: Language & Notifications */}
         <View style={styles.card}>
-          <Text style={styles.sectionLabel}>PREFERENCES</Text>
+          <Text style={styles.sectionLabel}>{t('settings.preferences')}</Text>
 
           {/* Language Selector */}
           <View style={styles.rowBetween}>
             <View style={styles.iconWithText}>
               <Text style={styles.rowIcon}>🌐</Text>
               <View>
-                <Text style={styles.rowTitle}>Language</Text>
-                <Text style={styles.rowSubtitle}>Choose app display language</Text>
+                <Text style={styles.rowTitle}>{t('settings.language')}</Text>
+                <Text style={styles.rowSubtitle}>{t('settings.languageSub')}</Text>
               </View>
             </View>
             <View style={styles.pillContainer}>
               <TouchableOpacity
-                style={[styles.langPill, language === 'English' && styles.langPillActive]}
-                onPress={() => setLanguage('English')}
+                style={[styles.langPill, language === 'en' && styles.langPillActive]}
+                onPress={() => setLanguage('en')}
               >
-                <Text style={[styles.langPillText, language === 'English' && styles.langPillTextActive]}>
+                <Text style={[styles.langPillText, language === 'en' && styles.langPillTextActive]}>
                   English
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.langPill, language === 'Marathi' && styles.langPillActive]}
-                onPress={() => setLanguage('Marathi')}
+                style={[styles.langPill, language === 'mr' && styles.langPillActive]}
+                onPress={() => setLanguage('mr')}
               >
-                <Text style={[styles.langPillText, language === 'Marathi' && styles.langPillTextActive]}>
+                <Text style={[styles.langPillText, language === 'mr' && styles.langPillTextActive]}>
                   मराठी
                 </Text>
               </TouchableOpacity>
@@ -225,9 +226,11 @@ export default function SettingsScreen({ navigation }) {
             <View style={styles.iconWithText}>
               <Text style={styles.rowIcon}>🔔</Text>
               <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={styles.rowTitle}>Notifications</Text>
+                <Text style={styles.rowTitle}>{t('settings.notifications')}</Text>
                 <Text style={styles.rowSubtitle}>
-                  {isProvider ? 'Access audit logs & session alerts' : 'Vaccination reminders & health updates'}
+                  {isProvider
+                    ? t('settings.notificationsProviderSub')
+                    : t('settings.notificationsUserSub')}
                 </Text>
               </View>
             </View>
@@ -243,14 +246,14 @@ export default function SettingsScreen({ navigation }) {
         {/* Device Permissions Overview */}
         <View style={styles.card}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionLabel}>PERMISSIONS MANAGEMENT</Text>
+            <Text style={styles.sectionLabel}>{t('settings.permissionsManagement')}</Text>
             <TouchableOpacity onPress={checkPermissions}>
-              <Text style={styles.refreshLink}>Refresh ↻</Text>
+              <Text style={styles.refreshLink}>{t('common.refresh')}</Text>
             </TouchableOpacity>
           </View>
 
           <Text style={styles.permissionIntro}>
-            Android permissions are managed by system security. You can request access or open App Settings below:
+            {t('settings.permissionsIntro')}
           </Text>
 
           {/* Camera Permission */}
@@ -259,8 +262,8 @@ export default function SettingsScreen({ navigation }) {
               <View style={styles.permTitleRow}>
                 <Text style={styles.rowIcon}>📷</Text>
                 <View>
-                  <Text style={styles.permName}>Camera</Text>
-                  <Text style={styles.permDesc}>Required for scanning Patient QR codes</Text>
+                  <Text style={styles.permName}>{t('settings.camera')}</Text>
+                  <Text style={styles.permDesc}>{t('settings.cameraDesc')}</Text>
                 </View>
               </View>
               {renderStatusBadge(cameraStatus)}
@@ -271,14 +274,14 @@ export default function SettingsScreen({ navigation }) {
                   style={styles.permRequestBtn}
                   onPress={handleRequestCamera}
                 >
-                  <Text style={styles.permRequestBtnText}>Request Access</Text>
+                  <Text style={styles.permRequestBtnText}>{t('common.requestAccess')}</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
                 style={styles.permSettingsBtn}
                 onPress={openSystemSettings}
               >
-                <Text style={styles.permSettingsBtnText}>System Settings ↗</Text>
+                <Text style={styles.permSettingsBtnText}>{t('common.systemSettings')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -291,8 +294,8 @@ export default function SettingsScreen({ navigation }) {
               <View style={styles.permTitleRow}>
                 <Text style={styles.rowIcon}>📍</Text>
                 <View>
-                  <Text style={styles.permName}>Location</Text>
-                  <Text style={styles.permDesc}>Used to find nearby PM-JAY empanelled hospitals</Text>
+                  <Text style={styles.permName}>{t('settings.location')}</Text>
+                  <Text style={styles.permDesc}>{t('settings.locationDesc')}</Text>
                 </View>
               </View>
               {renderStatusBadge(locationStatus)}
@@ -303,14 +306,14 @@ export default function SettingsScreen({ navigation }) {
                   style={styles.permRequestBtn}
                   onPress={handleRequestLocation}
                 >
-                  <Text style={styles.permRequestBtnText}>Request Access</Text>
+                  <Text style={styles.permRequestBtnText}>{t('common.requestAccess')}</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
                 style={styles.permSettingsBtn}
                 onPress={openSystemSettings}
               >
-                <Text style={styles.permSettingsBtnText}>System Settings ↗</Text>
+                <Text style={styles.permSettingsBtnText}>{t('common.systemSettings')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -323,12 +326,12 @@ export default function SettingsScreen({ navigation }) {
               <View style={styles.permTitleRow}>
                 <Text style={styles.rowIcon}>📄</Text>
                 <View>
-                  <Text style={styles.permName}>Medical Documents & Storage</Text>
-                  <Text style={styles.permDesc}>Managed safely via System File Picker</Text>
+                  <Text style={styles.permName}>{t('settings.documentsStorage')}</Text>
+                  <Text style={styles.permDesc}>{t('settings.documentsDesc')}</Text>
                 </View>
               </View>
               <View style={[styles.statusBadge, styles.statusBadgeGranted]}>
-                <Text style={[styles.statusBadgeText, styles.statusTextGranted]}>System Picker ✓</Text>
+                <Text style={[styles.statusBadgeText, styles.statusTextGranted]}>{t('settings.systemPicker')}</Text>
               </View>
             </View>
           </View>
@@ -336,20 +339,20 @@ export default function SettingsScreen({ navigation }) {
 
         {/* About Card */}
         <View style={styles.card}>
-          <Text style={styles.sectionLabel}>ABOUT</Text>
+          <Text style={styles.sectionLabel}>{t('settings.about')}</Text>
           <View style={styles.row}>
             <Text style={styles.rowIcon}>ℹ️</Text>
             <View style={styles.rowContent}>
-              <Text style={styles.rowTitle}>About HealthNest</Text>
-              <Text style={styles.rowSubtitle}>Version 1.0.0 (Production Release)</Text>
+              <Text style={styles.rowTitle}>{t('settings.aboutApp')}</Text>
+              <Text style={styles.rowSubtitle}>{t('settings.version')}</Text>
             </View>
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
             <Text style={styles.rowIcon}>🛡️</Text>
             <View style={styles.rowContent}>
-              <Text style={styles.rowTitle}>Consent & Audit Security</Text>
-              <Text style={styles.rowSubtitle}>Role-based access with encrypted QR tokens</Text>
+              <Text style={styles.rowTitle}>{t('settings.consentAudit')}</Text>
+              <Text style={styles.rowSubtitle}>{t('settings.consentAuditSub')}</Text>
             </View>
           </View>
         </View>
@@ -359,22 +362,22 @@ export default function SettingsScreen({ navigation }) {
           style={styles.logoutBtn}
           onPress={() => setShowLogoutDialog(true)}
         >
-          <Text style={styles.logoutBtnText}>Logout</Text>
+          <Text style={styles.logoutBtnText}>{t('common.logout')}</Text>
         </TouchableOpacity>
 
         {/* Footer */}
         <Text style={styles.footerText}>
-          HealthNest v1.0 · Secure Digital Health Platform
+          {t('settings.footer')}
         </Text>
       </ScrollView>
 
       {/* Logout Confirmation Bottom Sheet */}
       <ConfirmationDialog
         visible={showLogoutDialog}
-        title="Logout?"
-        message="You'll be signed out. Your health data stays safe and secure."
-        confirmText="Logout"
-        cancelText="Cancel"
+        title={t('settings.logoutDialogTitle')}
+        message={isProvider ? t('settings.logoutDialogProviderMessage') : t('settings.logoutDialogUserMessage')}
+        confirmText={t('common.logout')}
+        cancelText={t('common.cancel')}
         confirmVariant="danger"
         onConfirm={handleConfirmLogout}
         onCancel={() => setShowLogoutDialog(false)}

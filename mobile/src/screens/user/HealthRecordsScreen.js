@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import userService from '../../services/userService';
 import HealthRecordCard from '../../components/HealthRecordCard';
+import { useLanguage } from '../../context/LanguageContext';
 
 // ─── Category options (matches UI_INSTRUCTIONS.md §24) ───────────────────────
 const RECORD_TYPES = [
@@ -50,6 +51,7 @@ function validateDate(dateStr) {
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function HealthRecordsScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useLanguage();
 
   // Data
   const [records, setRecords] = useState([]);
@@ -199,15 +201,15 @@ export default function HealthRecordsScreen() {
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyIcon}>📋</Text>
-      <Text style={styles.emptyTitle}>No records found</Text>
+      <Text style={styles.emptyTitle}>{t('records.noRecordsFound')}</Text>
       <Text style={styles.emptySubtitle}>
         {searchQuery
-          ? 'No records match your search. Try different keywords.'
-          : 'Add your first health record to get started'}
+          ? t('records.noRecordsSub')
+          : t('records.noRecordsSub')}
       </Text>
       {!searchQuery && (
         <TouchableOpacity style={styles.emptyAddBtn} onPress={openAddModal}>
-          <Text style={styles.emptyAddBtnText}>Add Record</Text>
+          <Text style={styles.emptyAddBtnText}>{t('records.addRecord')}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -220,9 +222,9 @@ export default function HealthRecordsScreen() {
       {/* ── Header ── */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Health Records</Text>
+          <Text style={styles.headerTitle}>{t('records.title')}</Text>
           <Text style={styles.headerSubtitle}>
-            {records.length} {records.length === 1 ? 'record' : 'records'}
+            {records.length} {t('records.recordsCount')}
           </Text>
         </View>
         <TouchableOpacity
@@ -230,7 +232,7 @@ export default function HealthRecordsScreen() {
           onPress={openAddModal}
           accessibilityLabel="Add health record"
         >
-          <Text style={styles.addBtnText}>+ Add</Text>
+          <Text style={styles.addBtnText}>{t('records.addRecord')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -240,7 +242,7 @@ export default function HealthRecordsScreen() {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search records..."
+            placeholder={t('records.searchPlaceholder')}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={handleSearch}

@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import userService from '../../services/userService';
+import { useLanguage } from '../../context/LanguageContext';
 
 // Helper date formatting
 function formatDate(dateStr) {
@@ -42,6 +43,7 @@ function validateDate(dateStr) {
 
 export default function VaccinationScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { t } = useLanguage();
 
   // Data state
   const [vaccinations, setVaccinations] = useState([]);
@@ -246,12 +248,12 @@ export default function VaccinationScreen({ navigation }) {
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyIcon}>💉</Text>
-      <Text style={styles.emptyTitle}>No vaccination records</Text>
+      <Text style={styles.emptyTitle}>{t('vaccine.noCompleted')}</Text>
       <Text style={styles.emptySubtitle}>
-        Add your vaccination history to keep track
+        {t('vaccine.subtitle')}
       </Text>
       <TouchableOpacity style={styles.emptyAddBtn} onPress={openAddModal}>
-        <Text style={styles.emptyAddBtnText}>Add Vaccine</Text>
+        <Text style={styles.emptyAddBtnText}>{t('vaccine.addVaccine')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -270,15 +272,15 @@ export default function VaccinationScreen({ navigation }) {
             <Text style={styles.backBtnText}>‹</Text>
           </TouchableOpacity>
           <View>
-            <Text style={styles.headerTitle}>Vaccination</Text>
+            <Text style={styles.headerTitle}>{t('vaccine.title')}</Text>
             <Text style={styles.headerSubtitle}>
-              {vaccinations.length} {vaccinations.length === 1 ? 'record' : 'records'}
+              {vaccinations.length} {t('records.recordsCount')}
             </Text>
           </View>
         </View>
 
         <TouchableOpacity style={styles.addBtn} onPress={openAddModal}>
-          <Text style={styles.addBtnText}>+ Add</Text>
+          <Text style={styles.addBtnText}>{t('records.addRecord')}</Text>
         </TouchableOpacity>
       </View>
 

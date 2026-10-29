@@ -21,9 +21,11 @@ import {
 } from '../../components';
 import { userService } from '../../services/userService';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function ProfileScreen({ navigation }) {
   const { user: authUser, updateUser, logout } = useAuth();
+  const { t } = useLanguage();
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -133,7 +135,7 @@ export default function ProfileScreen({ navigation }) {
       {/* Top Header per Section 11 & 23 */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>My Profile</Text>
+          <Text style={styles.headerTitle}>{t('profile.myProfile')}</Text>
         </View>
         <View style={styles.headerRightActions}>
           <TouchableOpacity
@@ -153,7 +155,7 @@ export default function ProfileScreen({ navigation }) {
               }
             }}
           >
-            <Text style={styles.headerActionText}>{isEditing ? 'Cancel' : 'Edit'}</Text>
+            <Text style={styles.headerActionText}>{isEditing ? t('common.cancel') : t('common.edit')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -212,13 +214,13 @@ export default function ProfileScreen({ navigation }) {
                 <>
                   {/* Health Info Card per Section 23 */}
                   <View style={styles.card}>
-                    <Text style={styles.sectionLabel}>HEALTH INFO</Text>
+                    <Text style={styles.sectionLabel}>{t('profile.healthInfo')}</Text>
                     <ProfileField
-                      label="Blood Group"
+                      label={t('profile.bloodGroup')}
                       value={profile?.blood_group}
                     />
                     <ProfileField
-                      label="Emergency Contact"
+                      label={t('profile.emergencyContact')}
                       value={profile?.emergency_contact}
                       isLast
                     />
@@ -226,34 +228,34 @@ export default function ProfileScreen({ navigation }) {
 
                   {/* Personal Information Card per Section 23 */}
                   <View style={styles.card}>
-                    <Text style={styles.sectionLabel}>PERSONAL INFORMATION</Text>
-                    <ProfileField label="Full Name" value={profile?.full_name} />
-                    <ProfileField label="Mobile Number" value={profile?.mobile} />
-                    <ProfileField label="Email" value={profile?.email} />
+                    <Text style={styles.sectionLabel}>{t('profile.personalInfo')}</Text>
+                    <ProfileField label={t('profile.fullName')} value={profile?.full_name} />
+                    <ProfileField label={t('profile.mobileNumber')} value={profile?.mobile} />
+                    <ProfileField label={t('profile.email')} value={profile?.email} />
                     <ProfileField
-                      label="Date of Birth"
+                      label={t('profile.dob')}
                       value={
                         profile?.date_of_birth
                           ? profile.date_of_birth.substring(0, 10)
                           : null
                       }
                     />
-                    <ProfileField label="Gender" value={profile?.gender} />
-                    <ProfileField label="City" value={profile?.city} />
-                    <ProfileField label="State" value={profile?.state} isLast />
+                    <ProfileField label={t('profile.gender')} value={profile?.gender} />
+                    <ProfileField label={t('profile.city')} value={profile?.city} />
+                    <ProfileField label={t('profile.state')} value={profile?.state} isLast />
                   </View>
 
                   {/* Settings & Preferences Card */}
                   <View style={styles.card}>
-                    <Text style={styles.sectionLabel}>PREFERENCES & SECURITY</Text>
+                    <Text style={styles.sectionLabel}>{t('profile.preferencesSecurity')}</Text>
                     <TouchableOpacity
                       style={styles.settingsRow}
                       onPress={() => navigation.navigate('Settings')}
                     >
                       <Text style={styles.settingsRowIcon}>⚙️</Text>
                       <View style={styles.settingsRowContent}>
-                        <Text style={styles.settingsRowTitle}>Settings & Permissions</Text>
-                        <Text style={styles.settingsRowSubtitle}>Language, notifications & device permissions</Text>
+                        <Text style={styles.settingsRowTitle}>{t('profile.settingsPermissions')}</Text>
+                        <Text style={styles.settingsRowSubtitle}>{t('profile.settingsSub')}</Text>
                       </View>
                       <Text style={styles.chevron}>›</Text>
                     </TouchableOpacity>
@@ -264,60 +266,64 @@ export default function ProfileScreen({ navigation }) {
                     style={styles.logoutBtn}
                     onPress={() => setShowLogoutDialog(true)}
                   >
-                    <Text style={styles.logoutBtnText}>Logout</Text>
+                    <Text style={styles.logoutBtnText}>{t('common.logout')}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 /* Edit Mode Form */
                 <View style={styles.card}>
-                  <Text style={styles.sectionLabel}>EDIT PROFILE</Text>
+                  <Text style={styles.sectionLabel}>{t('profile.editProfile')}</Text>
 
                   <AppInput
-                    label="Full Name"
+                    label={t('profile.fullName')}
                     value={fullName}
                     onChangeText={setFullName}
                     required
                   />
 
                   <AppInput
-                    label="Mobile Number (Immutable)"
+                    label={`${t('profile.mobileNumber')} (Immutable)`}
                     value={profile?.mobile}
                     editable={false}
                   />
 
                   <AppInput
-                    label="Email"
+                    label={t('profile.email')}
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"
                   />
 
                   <AppInput
-                    label="Date of Birth (YYYY-MM-DD)"
+                    label={t('profile.dob')}
                     value={dateOfBirth}
                     onChangeText={setDateOfBirth}
                     placeholder="YYYY-MM-DD"
                   />
 
                   <View style={styles.genderContainer}>
-                    <Text style={styles.fieldLabel}>Gender</Text>
+                    <Text style={styles.fieldLabel}>{t('profile.gender')}</Text>
                     <View style={styles.genderRow}>
-                      {['Male', 'Female', 'Other'].map((g) => (
+                      {[
+                        { key: 'Male', label: t('auth.male') },
+                        { key: 'Female', label: t('auth.female') },
+                        { key: 'Other', label: t('auth.other') },
+                      ].map((item) => (
                         <TouchableOpacity
-                          key={g}
+                          key={item.key}
                           style={[
                             styles.genderOption,
-                            gender === g && styles.genderOptionActive,
+                            gender === item.key && styles.genderOptionActive,
                           ]}
-                          onPress={() => setGender(g)}
+                          onPress={() => setGender(item.key)}
                         >
                           <Text
                             style={[
                               styles.genderOptionText,
-                              gender === g && styles.genderOptionTextActive,
+                              gender === item.key && styles.genderOptionTextActive,
                             ]}
                           >
-                            {g}
+                            {item.label}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -325,14 +331,14 @@ export default function ProfileScreen({ navigation }) {
                   </View>
 
                   <AppInput
-                    label="Blood Group"
+                    label={t('profile.bloodGroup')}
                     placeholder="e.g. B+, O+, A+, AB-"
                     value={bloodGroup}
                     onChangeText={setBloodGroup}
                   />
 
                   <AppInput
-                    label="Emergency Contact"
+                    label={t('profile.emergencyContact')}
                     placeholder="10-digit mobile number"
                     value={emergencyContact}
                     onChangeText={setEmergencyContact}
@@ -341,20 +347,20 @@ export default function ProfileScreen({ navigation }) {
                   />
 
                   <AppInput
-                    label="City"
+                    label={t('profile.city')}
                     value={city}
                     onChangeText={setCity}
                   />
 
                   <AppInput
-                    label="State"
+                    label={t('profile.state')}
                     value={state}
                     onChangeText={setState}
                   />
 
                   <View style={styles.editActionRow}>
                     <AppButton
-                      title="Save Changes"
+                      title={t('common.saveChanges')}
                       variant="primary"
                       onPress={handleSaveProfile}
                       loading={saving}

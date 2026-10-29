@@ -13,11 +13,13 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { providerService } from '../../services/providerService';
+import { useLanguage } from '../../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
 const SCAN_FRAME_SIZE = 260;
 
 export default function ScanQRScreen({ navigation }) {
+  const { t } = useLanguage();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanningActive, setIsScanningActive] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
@@ -198,7 +200,7 @@ export default function ScanQRScreen({ navigation }) {
         >
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Scan Patient QR</Text>
+        <Text style={styles.headerTitle}>{t('provider.scanScreenTitle')}</Text>
         <TouchableOpacity
           style={[styles.flashButton, isTorchOn ? styles.flashActive : styles.flashInactive]}
           onPress={() => setIsTorchOn(!isTorchOn)}
@@ -308,14 +310,14 @@ export default function ScanQRScreen({ navigation }) {
               {showCamera && !cameraReady && scanStatus === 'scanning' && (
                 <View style={styles.statusIndicatorCenter}>
                   <ActivityIndicator size="large" color="#38BDF8" />
-                  <Text style={styles.verifyingText}>Starting camera…</Text>
+                  <Text style={styles.verifyingText}>{t('provider.initializingCamera')}</Text>
                 </View>
               )}
 
               {scanStatus === 'verifying' && (
                 <View style={styles.statusIndicatorCenter}>
                   <ActivityIndicator size="large" color="#38BDF8" />
-                  <Text style={styles.verifyingText}>Scanning and verifying…</Text>
+                  <Text style={styles.verifyingText}>{t('provider.scanningAndVerifying')}</Text>
                 </View>
               )}
 
@@ -324,7 +326,7 @@ export default function ScanQRScreen({ navigation }) {
                   <View style={styles.successCircle}>
                     <Text style={styles.successCheck}>✓</Text>
                   </View>
-                  <Text style={styles.successText}>QR Verified!</Text>
+                  <Text style={styles.successText}>{t('provider.qrVerified')}</Text>
                 </View>
               )}
 
@@ -333,7 +335,7 @@ export default function ScanQRScreen({ navigation }) {
                   <View style={styles.invalidCircle}>
                     <Text style={styles.invalidCross}>✕</Text>
                   </View>
-                  <Text style={styles.invalidText}>Invalid QR</Text>
+                  <Text style={styles.invalidText}>{t('provider.invalidQRTitle')}</Text>
                 </View>
               )}
 
@@ -342,7 +344,7 @@ export default function ScanQRScreen({ navigation }) {
                   <View style={styles.expiredCircle}>
                     <Text style={styles.expiredExclamation}>!</Text>
                   </View>
-                  <Text style={styles.expiredText}>QR Code Expired</Text>
+                  <Text style={styles.expiredText}>{t('provider.expiredQRTitle')}</Text>
                 </View>
               )}
             </View>
@@ -358,14 +360,14 @@ export default function ScanQRScreen({ navigation }) {
         {scanStatus === 'idle' && (
           <>
             <Text style={styles.instructionText}>
-              Ask the patient to open their QR Health Card and hold it steady in front of the camera.
+              {t('provider.scanInstruction')}
             </Text>
             <TouchableOpacity
               style={styles.primaryActionButton}
               onPress={handleStartScanning}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryActionText}>Start Scanning</Text>
+              <Text style={styles.primaryActionText}>{t('provider.startScanning')}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -375,12 +377,12 @@ export default function ScanQRScreen({ navigation }) {
             {cameraReady ? (
               <>
                 <View style={styles.scanningDot} />
-                <Text style={styles.scanningPromptText}>Camera active — point at QR code</Text>
+                <Text style={styles.scanningPromptText}>{t('provider.cameraActivePrompt')}</Text>
               </>
             ) : (
               <>
                 <ActivityIndicator size="small" color="#0D9488" style={{ marginRight: 8 }} />
-                <Text style={styles.scanningPromptText}>Initializing camera…</Text>
+                <Text style={styles.scanningPromptText}>{t('provider.initializingCamera')}</Text>
               </>
             )}
           </View>
@@ -388,57 +390,57 @@ export default function ScanQRScreen({ navigation }) {
 
         {scanStatus === 'invalid' && (
           <View style={styles.errorPanel}>
-            <Text style={styles.errorPanelTitle}>Invalid QR Code</Text>
+            <Text style={styles.errorPanelTitle}>{t('provider.invalidQRTitle')}</Text>
             <Text style={styles.errorPanelBody}>
-              {errorMessage || 'This does not appear to be a valid HealthNest QR code. Please try again.'}
+              {errorMessage || t('provider.invalidQRDesc')}
             </Text>
             <TouchableOpacity
               style={styles.scanAgainButton}
               onPress={handleStartScanning}
             >
-              <Text style={styles.scanAgainText}>Scan Again</Text>
+              <Text style={styles.scanAgainText}>{t('provider.scanAgain')}</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {scanStatus === 'expired' && (
           <View style={[styles.errorPanel, styles.errorPanelAmber]}>
-            <Text style={[styles.errorPanelTitle, styles.errorTitleAmber]}>QR Code Expired</Text>
+            <Text style={[styles.errorPanelTitle, styles.errorTitleAmber]}>{t('provider.expiredQRTitle')}</Text>
             <Text style={[styles.errorPanelBody, styles.errorBodyAmber]}>
-              {errorMessage || 'Ask the patient to regenerate their QR code from the HealthNest app.'}
+              {errorMessage || t('provider.expiredQRDesc')}
             </Text>
             <TouchableOpacity
               style={[styles.scanAgainButton, styles.scanAgainAmber]}
               onPress={handleStartScanning}
             >
-              <Text style={styles.scanAgainText}>Scan Again</Text>
+              <Text style={styles.scanAgainText}>{t('provider.scanAgain')}</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {scanStatus === 'error' && (
           <View style={styles.errorPanel}>
-            <Text style={styles.errorPanelTitle}>Authorization Error</Text>
+            <Text style={styles.errorPanelTitle}>{t('provider.authErrorTitle')}</Text>
             <Text style={styles.errorPanelBody}>{errorMessage}</Text>
             <TouchableOpacity
               style={styles.scanAgainButton}
               onPress={handleStartScanning}
             >
-              <Text style={styles.scanAgainText}>Scan Again</Text>
+              <Text style={styles.scanAgainText}>{t('provider.scanAgain')}</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {scanStatus === 'success' && (
           <View style={styles.successPanel}>
-            <Text style={styles.successPanelTitle}>Access Authorized</Text>
-            <Text style={styles.successPanelSubtitle}>Redirecting to patient medical summary...</Text>
+            <Text style={styles.successPanelTitle}>{t('provider.accessAuthorized')}</Text>
+            <Text style={styles.successPanelSubtitle}>{t('provider.redirecting')}</Text>
           </View>
         )}
 
         {/* Footer Audit Disclaimer */}
         <Text style={styles.bottomAuditNote}>
-          Patient must consent to share. Access is logged and audited.
+          {t('provider.auditNote')}
         </Text>
       </View>
     </View>

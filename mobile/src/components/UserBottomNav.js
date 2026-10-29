@@ -1,14 +1,17 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS } from '../constants';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function UserBottomNav({ activeTab = 'Home', navigation }) {
+  const { t } = useLanguage();
+
   const tabs = [
-    { name: 'Home', icon: '🏠', screen: 'Dashboard' },
-    { name: 'Records', icon: '📋', screen: 'HealthRecords' },
-    { name: 'Vaccine', icon: '💉', screen: 'Vaccination' },
-    { name: 'QR Card', icon: '🪪', screen: 'QRHealthCard' },
-    { name: 'Profile', icon: '👤', screen: 'Profile' },
+    { name: 'Home', label: t('nav.home'), icon: '🏠', screen: 'Dashboard' },
+    { name: 'Records', label: t('nav.records'), icon: '📋', screen: 'HealthRecords' },
+    { name: 'Vaccine', label: t('nav.vaccine'), icon: '💉', screen: 'Vaccination' },
+    { name: 'QR Card', label: t('nav.qrCard'), icon: '🪪', screen: 'QRHealthCard' },
+    { name: 'Profile', label: t('nav.profile'), icon: '👤', screen: 'Profile' },
   ];
 
   return (
@@ -26,8 +29,8 @@ export default function UserBottomNav({ activeTab = 'Home', navigation }) {
             }}
           >
             <Text style={styles.tabIcon}>{tab.icon}</Text>
-            <Text style={[styles.tabLabel, isActive && styles.activeTabLabel]}>
-              {tab.name}
+            <Text style={[styles.tabLabel, isActive && styles.activeTabLabel]} numberOfLines={1}>
+              {tab.label}
             </Text>
             {isActive ? <View style={styles.activeIndicator} /> : <View style={styles.inactiveSpace} />}
           </TouchableOpacity>
@@ -58,6 +61,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 2,
+    paddingHorizontal: 2,
   },
   tabIcon: {
     fontSize: 20,
@@ -67,6 +71,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: COLORS.textMuted,
+    textAlign: 'center',
   },
   activeTabLabel: {
     color: COLORS.primary,

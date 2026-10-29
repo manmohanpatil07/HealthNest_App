@@ -11,9 +11,11 @@ import { COLORS } from '../../constants';
 import { LoadingSpinner, ErrorMessage, UserBottomNav } from '../../components';
 import { userService } from '../../services/userService';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function DashboardScreen({ navigation }) {
   const { user: authUser } = useAuth();
+  const { t } = useLanguage();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,7 +65,7 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.heroSection}>
           <View style={styles.topRow}>
             <View>
-              <Text style={styles.greeting}>Good morning,</Text>
+              <Text style={styles.greeting}>{t('dashboard.goodMorning')}</Text>
               <Text style={styles.userName}>{userName} 👋</Text>
             </View>
             <TouchableOpacity
@@ -79,12 +81,12 @@ export default function DashboardScreen({ navigation }) {
           {/* Health Status Card per Section 22 */}
           <View style={styles.healthStatusCard}>
             <View style={styles.healthStatusLeft}>
-              <Text style={styles.healthStatusTitle}>Health Status</Text>
-              <Text style={styles.healthStatusState}>All Good ✓</Text>
-              <Text style={styles.healthStatusSub}>Last updated: Today</Text>
+              <Text style={styles.healthStatusTitle}>{t('dashboard.healthStatus')}</Text>
+              <Text style={styles.healthStatusState}>{t('common.allGood')}</Text>
+              <Text style={styles.healthStatusSub}>{t('dashboard.lastUpdated')}</Text>
             </View>
             <View style={styles.healthStatusRight}>
-              <Text style={styles.bloodLabel}>Blood Group</Text>
+              <Text style={styles.bloodLabel}>{t('dashboard.bloodGroup')}</Text>
               <View style={styles.bloodBadge}>
                 <Text style={styles.bloodText}>{bloodGroup}</Text>
               </View>
@@ -96,12 +98,12 @@ export default function DashboardScreen({ navigation }) {
           {error ? <ErrorMessage message={error} /> : null}
 
           {loading ? (
-            <LoadingSpinner message="Loading health summary..." />
+            <LoadingSpinner message={t('dashboard.loadSummary')} />
           ) : (
             <>
               {/* Quick Access Section per Section 22 */}
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionLabel}>QUICK ACCESS</Text>
+                <Text style={styles.sectionLabel}>{t('dashboard.quickAccess')}</Text>
               </View>
 
               {/* First row: 3 cards (Health Records, Documents, Vaccination) */}
@@ -113,7 +115,7 @@ export default function DashboardScreen({ navigation }) {
                   <View style={[styles.quickIconCircle, { backgroundColor: '#E0F2FE' }]}>
                     <Text style={styles.quickEmoji}>📋</Text>
                   </View>
-                  <Text style={styles.quickLabel}>Health Records</Text>
+                  <Text style={styles.quickLabel}>{t('records.title')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -123,7 +125,7 @@ export default function DashboardScreen({ navigation }) {
                   <View style={[styles.quickIconCircle, { backgroundColor: '#F3E8FF' }]}>
                     <Text style={styles.quickEmoji}>📄</Text>
                   </View>
-                  <Text style={styles.quickLabel}>Documents</Text>
+                  <Text style={styles.quickLabel}>{t('documents.title')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -133,7 +135,7 @@ export default function DashboardScreen({ navigation }) {
                   <View style={[styles.quickIconCircle, { backgroundColor: '#DCFCE7' }]}>
                     <Text style={styles.quickEmoji}>💉</Text>
                   </View>
-                  <Text style={styles.quickLabel}>Vaccination</Text>
+                  <Text style={styles.quickLabel}>{t('vaccine.title')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -146,7 +148,7 @@ export default function DashboardScreen({ navigation }) {
                   <View style={[styles.quickIconCircle, { backgroundColor: '#FEF3C7' }]}>
                     <Text style={styles.quickEmoji}>🪪</Text>
                   </View>
-                  <Text style={styles.quickLabel}>QR Health Card</Text>
+                  <Text style={styles.quickLabel}>{t('qrCard.title')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -156,13 +158,13 @@ export default function DashboardScreen({ navigation }) {
                   <View style={[styles.quickIconCircle, { backgroundColor: '#E0F2FE' }]}>
                     <Text style={styles.quickEmoji}>🏥</Text>
                   </View>
-                  <Text style={styles.quickLabel}>Hospital Finder</Text>
+                  <Text style={styles.quickLabel}>{t('hospital.title')}</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Upcoming Section per Section 22 */}
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionLabel}>UPCOMING</Text>
+                <Text style={styles.sectionLabel}>{t('dashboard.upcomingVaccination')}</Text>
               </View>
 
               {upcomingVaccine ? (
@@ -207,9 +209,9 @@ export default function DashboardScreen({ navigation }) {
 
               {/* Recent Records Section per Section 22 */}
               <View style={styles.sectionHeaderWithAction}>
-                <Text style={styles.sectionLabel}>RECENT RECORDS</Text>
+                <Text style={styles.sectionLabel}>{t('dashboard.recentRecords')}</Text>
                 <TouchableOpacity onPress={() => navigation.navigate('HealthRecords')}>
-                  <Text style={styles.viewAllText}>View All</Text>
+                  <Text style={styles.viewAllText}>{t('dashboard.viewAll')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -249,12 +251,12 @@ export default function DashboardScreen({ navigation }) {
               ) : (
                 <View style={[styles.recordCard, { justifyContent: 'center', alignItems: 'center', paddingVertical: 20 }]}>
                   <Text style={{ fontSize: 28, marginBottom: 6 }}>📋</Text>
-                  <Text style={{ fontSize: 14, color: '#64748B', fontWeight: '500' }}>No health records yet</Text>
+                  <Text style={{ fontSize: 14, color: '#64748B', fontWeight: '500' }}>{t('dashboard.noRecentRecords')}</Text>
                   <TouchableOpacity
                     onPress={() => navigation.navigate('HealthRecords')}
                     style={{ marginTop: 8 }}
                   >
-                    <Text style={{ color: '#0284C7', fontWeight: '700', fontSize: 13 }}>+ Add your first record</Text>
+                    <Text style={{ color: '#0284C7', fontWeight: '700', fontSize: 13 }}>{t('records.addRecord')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -270,9 +272,9 @@ export default function DashboardScreen({ navigation }) {
                     <Text style={{ fontSize: 26 }}>🪪</Text>
                   </View>
                   <View style={styles.qrCtaTextCol}>
-                    <Text style={styles.qrCtaTitle}>My QR Health Card</Text>
+                    <Text style={styles.qrCtaTitle}>{t('qrCard.title')}</Text>
                     <Text style={styles.qrCtaSubtitle}>
-                      Share your health info securely with providers
+                      {t('dashboard.qrHealthCardSub')}
                     </Text>
                   </View>
                 </View>
