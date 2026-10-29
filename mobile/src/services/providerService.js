@@ -36,6 +36,16 @@ export const providerService = {
   },
 
   /**
+   * PUT /api/provider/profile
+   * Update the authenticated provider's profile.
+   * Returns { success, message, provider }
+   */
+  updateProfile: async (profileData) => {
+    const response = await api.put('/provider/profile', profileData);
+    return response.data;
+  },
+
+  /**
    * POST /api/provider/scan-qr
    * Validate a scanned QR access token and retrieve authorized patient data.
    * Returns { success, patient, healthRecords, documents, vaccinations, accessInfo }
@@ -52,6 +62,26 @@ export const providerService = {
    */
   getPatientByToken: async (accessToken) => {
     const response = await api.get(`/provider/patient/${encodeURIComponent(accessToken)}`);
+    return response.data;
+  },
+
+  /**
+   * GET /api/provider/history
+   * Retrieve patient access history for authenticated provider.
+   * Returns { success, count, history }
+   */
+  getHistory: async () => {
+    const response = await api.get('/provider/history');
+    return response.data;
+  },
+
+  /**
+   * GET /api/provider/history/:accessId
+   * Retrieve authorized patient details from historical access ID.
+   * Returns { success, patient, healthRecords, documents, vaccinations, accessInfo }
+   */
+  getPatientByHistoryId: async (accessId) => {
+    const response = await api.get(`/provider/history/${encodeURIComponent(accessId)}`);
     return response.data;
   },
 };

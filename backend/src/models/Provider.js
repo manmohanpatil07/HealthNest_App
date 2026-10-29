@@ -122,6 +122,45 @@ const Provider = {
       ]
     );
     return result.insertId;
+  },
+
+  /**
+   * Update provider profile details (safe fields only)
+   * @param {number} providerId
+   * @param {Object} updateData
+   * @returns {Promise<boolean>}
+   */
+  async updateProfile(providerId, {
+    full_name,
+    mobile,
+    email = null,
+    provider_type,
+    clinic_name = null,
+    city = null,
+    state = null
+  }) {
+    const [result] = await pool.execute(
+      `UPDATE providers
+       SET full_name = ?,
+           mobile = ?,
+           email = ?,
+           provider_type = ?,
+           clinic_name = ?,
+           city = ?,
+           state = ?
+       WHERE provider_id = ?`,
+      [
+        full_name,
+        mobile,
+        email || null,
+        provider_type || 'healthcare_provider',
+        clinic_name || null,
+        city || null,
+        state || null,
+        providerId
+      ]
+    );
+    return result.affectedRows > 0;
   }
 };
 

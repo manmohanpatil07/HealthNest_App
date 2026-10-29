@@ -13,25 +13,35 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { providerService } from '../../services/providerService';
 import { ConfirmationDialog } from '../../components';
+import { formatDate } from '../../utils';
 
 export default function ProviderDashboardScreen({ navigation }) {
   const { user, logout } = useAuth();
   const { t } = useLanguage();
   const [providerData, setProviderData] = useState(user || null);
+  const [historyList, setHistoryList] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [sessionModalVisible, setSessionModalVisible] = useState(false);
 
-  const fetchProviderProfile = async () => {
+  const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const res = await providerService.getProfile();
-      if (res && res.success && res.provider) {
-        setProviderData(res.provider);
+      const [profileRes, historyRes] = await Promise.allSettled([
+        providerService.getProfile(),
+        providerService.getHistory(),
+      ]);
+
+      if (profileRes.status === 'fulfilled' && profileRes.value?.success) {
+        setProviderData(profileRes.value.provider);
+      }
+      if (historyRes.status === 'fulfilled' && historyRes.value?.success) {
+        setHistoryList(historyRes.value.history || []);
       }
     } catch (err) {
-      console.warn('[ProviderDashboardScreen] Error fetching profile:', err);
+      console.warn('[ProviderDashboardScreen] Error fetching dashboard data:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -39,12 +49,12 @@ export default function ProviderDashboardScreen({ navigation }) {
   };
 
   useEffect(() => {
-    fetchProviderProfile();
+    fetchDashboardData();
   }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchProviderProfile();
+    fetchDashboardData();
   };
 
   const handleLogout = async () => {
@@ -57,6 +67,14 @@ export default function ProviderDashboardScreen({ navigation }) {
   const clinicName = providerData?.clinic_name || 'City Clinic, Pune';
   const providerId = providerData?.provider_id ? `#PRV-${providerData.provider_id}` : '#PRV-2394';
   const cityState = [providerData?.city, providerData?.state].filter(Boolean).join(', ') || 'Pune, MH';
+
+  const handlePatientSelect = (item) => {
+    navigation.navigate('PatientDetails', {
+      accessId: item.access_id,
+      patientName: item.full_name,
+      patientStatus: item.status,
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -126,7 +144,7 @@ export default function ProviderDashboardScreen({ navigation }) {
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>{t('provider.todaysScans')}</Text>
-              <Text style={styles.statNumber}>3</Text>
+              <Text style={styles.statNumber}>{historyList.length}</Text>
               <Text style={styles.statFooter}>{t('provider.patientRecordsAccessed')}</Text>
             </View>
             <View style={styles.statCard}>
@@ -139,48 +157,80 @@ export default function ProviderDashboardScreen({ navigation }) {
           {/* Recent Activity */}
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>{t('provider.recentActivity')}</Text>
-            <Text style={styles.sectionCount}>{t('common.today')}</Text>
+            <Text style={styles.sectionCount}>({historyList.length})</Text>
           </View>
 
           <View style={styles.activityList}>
-            <View style={styles.activityCard}>
-              <View style={styles.activityIconBg}>
-                <Text style={styles.activityEmoji}>👤</Text>
+            {loading && historyList.length === 0 ? (
+              <View style={styles.historyLoadingContainer}>
+                <ActivityIndicator size="small" color="#0D9488" />
+                <Text style={styles.historyLoadingText}>Loading patient history…</Text>
               </View>
-              <View style={styles.activityInfo}>
-                <Text style={styles.activityPatient}>Anita Joshi</Text>
-                <Text style={styles.activityDetail}>Patient record · 10:32 AM</Text>
+            ) : historyList.length === 0 ? (
+              <View style={styles.emptyHistoryCard}>
+                <Text style={styles.emptyHistoryIcon}>📋</Text>
+                <Text style={styles.emptyHistoryTitle}>No Patient History Yet</Text>
+                <Text style={styles.emptyHistorySubtitle}>
+                  Scan a patient's HealthNest QR code to securely access their health records.
+                </Text>
               </View>
-              <View style={styles.statusSuccessBadge}>
-                <Text style={styles.statusSuccessText}>{t('provider.accessed')}</Text>
-              </View>
-            </View>
+            ) : (
+              historyList.map((item) => {
+                const isExpired = item.status === 'expired';
+                const isRevoked = item.status === 'revoked';
+                const displayDate = item.accessed_at ? formatDate(item.accessed_at) : 'Recent';
 
-            <View style={styles.activityCard}>
-              <View style={styles.activityIconBg}>
-                <Text style={styles.activityEmoji}>👤</Text>
-              </View>
-              <View style={styles.activityInfo}>
-                <Text style={styles.activityPatient}>Ramesh Patil</Text>
-                <Text style={styles.activityDetail}>Patient record · 9:15 AM</Text>
-              </View>
-              <View style={styles.statusSuccessBadge}>
-                <Text style={styles.statusSuccessText}>{t('provider.accessed')}</Text>
-              </View>
-            </View>
-
-            <View style={styles.activityCard}>
-              <View style={styles.activityIconBg}>
-                <Text style={styles.activityEmoji}>👤</Text>
-              </View>
-              <View style={styles.activityInfo}>
-                <Text style={styles.activityPatient}>Sunita Desai</Text>
-                <Text style={styles.activityDetail}>Patient record · Yesterday</Text>
-              </View>
-              <View style={styles.statusSuccessBadge}>
-                <Text style={styles.statusSuccessText}>{t('provider.accessed')}</Text>
-              </View>
-            </View>
+                return (
+                  <TouchableOpacity
+                    key={item.access_id}
+                    style={[
+                      styles.activityCard,
+                      (isExpired || isRevoked) && styles.activityCardInactive,
+                    ]}
+                    onPress={() => handlePatientSelect(item)}
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={[
+                        styles.activityIconBg,
+                        isExpired && styles.activityIconBgAmber,
+                        isRevoked && styles.activityIconBgGray,
+                      ]}
+                    >
+                      <Text style={styles.activityEmoji}>
+                        {isExpired ? '⏳' : isRevoked ? '🔒' : '👤'}
+                      </Text>
+                    </View>
+                    <View style={styles.activityInfo}>
+                      <Text style={styles.activityPatient} numberOfLines={1}>
+                        {item.full_name || 'Patient'}
+                      </Text>
+                      <Text style={styles.activityDetail}>
+                        {item.blood_group ? `${item.blood_group} · ` : ''}
+                        {displayDate}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusSuccessBadge,
+                        isExpired && styles.statusExpiredBadge,
+                        isRevoked && styles.statusRevokedBadge,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusSuccessText,
+                          isExpired && styles.statusExpiredText,
+                          isRevoked && styles.statusRevokedText,
+                        ]}
+                      >
+                        {isExpired ? 'Expired' : isRevoked ? 'Revoked' : t('provider.accessed')}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </View>
 
           {/* Read-only Disclaimer */}
@@ -235,16 +285,28 @@ export default function ProviderDashboardScreen({ navigation }) {
               </Text>
             </View>
 
-            <Text style={styles.modalSubHeader}>TODAY'S ACCESS LOG</Text>
+            <Text style={styles.modalSubHeader}>RECENT ACCESS LOG</Text>
 
-            <View style={styles.modalLogRow}>
-              <Text style={styles.modalLogPatient}>• Anita Joshi</Text>
-              <Text style={styles.modalLogAction}>Viewed health records · 10:32 AM</Text>
-            </View>
-            <View style={styles.modalLogRow}>
-              <Text style={styles.modalLogPatient}>• Ramesh Patil</Text>
-              <Text style={styles.modalLogAction}>Viewed vaccination history · 9:15 AM</Text>
-            </View>
+            {historyList.length === 0 ? (
+              <View style={{ paddingVertical: 12 }}>
+                <Text style={{ fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>
+                  No access records logged yet.
+                </Text>
+              </View>
+            ) : (
+              historyList.slice(0, 5).map((item) => (
+                <View key={item.access_id} style={styles.modalLogRow}>
+                  <Text style={styles.modalLogPatient}>• {item.full_name}</Text>
+                  <Text style={styles.modalLogAction}>
+                    {item.status === 'expired'
+                      ? 'Access expired'
+                      : item.status === 'revoked'
+                      ? 'Access revoked'
+                      : `Viewed records · ${formatDate(item.accessed_at)}`}
+                  </Text>
+                </View>
+              ))
+            )}
 
             <View style={styles.modalFooterBox}>
               <Text style={styles.modalFooterText}>
@@ -536,6 +598,63 @@ const styles = StyleSheet.create({
     color: '#15803D',
     fontSize: 11,
     fontWeight: '700',
+  },
+  activityCardInactive: {
+    opacity: 0.85,
+    borderColor: '#E2E8F0',
+  },
+  activityIconBgAmber: {
+    backgroundColor: '#FEF3C7',
+  },
+  activityIconBgGray: {
+    backgroundColor: '#F1F5F9',
+  },
+  statusExpiredBadge: {
+    backgroundColor: '#FEF3C7',
+  },
+  statusExpiredText: {
+    color: '#D97706',
+  },
+  statusRevokedBadge: {
+    backgroundColor: '#F1F5F9',
+  },
+  statusRevokedText: {
+    color: '#64748B',
+  },
+  historyLoadingContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyLoadingText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#64748B',
+  },
+  emptyHistoryCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+  },
+  emptyHistoryIcon: {
+    fontSize: 36,
+    marginBottom: 8,
+  },
+  emptyHistoryTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 4,
+  },
+  emptyHistorySubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
   },
   disclaimerCard: {
     backgroundColor: '#FFFBEB',

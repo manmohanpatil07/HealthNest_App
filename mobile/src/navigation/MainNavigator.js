@@ -14,6 +14,7 @@ import SettingsScreen from '../screens/user/SettingsScreen';
 import ProviderDashboardScreen from '../screens/provider/ProviderDashboardScreen';
 import ScanQRScreen from '../screens/provider/ScanQRScreen';
 import PatientDetailsScreen from '../screens/provider/PatientDetailsScreen';
+import ProviderProfileScreen from '../screens/provider/ProviderProfileScreen';
 
 // Hospital Screens
 import HospitalFinderScreen from '../screens/hospitals/HospitalFinderScreen';
@@ -73,6 +74,11 @@ export default function MainNavigator() {
         name="ProviderDashboard" 
         component={ProviderDashboardScreen} 
         options={{ title: 'Provider Portal' }} 
+      />
+      <Stack.Screen 
+        name="ProviderProfile" 
+        component={ProviderProfileScreen} 
+        options={{ title: 'Provider Profile' }} 
       />
       <Stack.Screen 
         name="ScanQR" 

@@ -257,6 +257,119 @@ const providerController = {
   },
 
   /**
+   * Update authenticated provider's profile
+   * PUT /api/provider/profile
+   * Requires JWT with role: 'healthcare_provider'
+   * Body: { full_name, mobile, email, provider_type, clinic_name, city, state }
+   */
+  async updateProfile(req, res) {
+    try {
+      const providerId = req.user.providerId || req.user.id;
+      const currentProvider = await Provider.findById(providerId);
+
+      if (!currentProvider) {
+        return res.status(404).json({
+          success: false,
+          message: 'Provider not found'
+        });
+      }
+
+      const {
+        full_name,
+        mobile,
+        email,
+        provider_type,
+        clinic_name,
+        city,
+        state
+      } = req.body;
+
+      // 1. Validate full_name
+      if (!full_name || !full_name.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Full name is required.'
+        });
+      }
+
+      // 2. Validate mobile
+      const newMobile = mobile !== undefined ? String(mobile).trim() : currentProvider.mobile;
+      if (!newMobile) {
+        return res.status(400).json({
+          success: false,
+          message: 'Mobile number is required.'
+        });
+      }
+      if (newMobile.length !== 10 || !/^[0-9]+$/.test(newMobile)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Mobile number must be exactly 10 digits.'
+        });
+      }
+
+      // Check mobile uniqueness if changed
+      if (newMobile !== currentProvider.mobile) {
+        const existingWithMobile = await Provider.findByMobile(newMobile);
+        if (existingWithMobile && existingWithMobile.provider_id !== providerId) {
+          return res.status(409).json({
+            success: false,
+            message: 'This mobile number is already registered to another provider account.'
+          });
+        }
+      }
+
+      // 3. Validate email (optional)
+      let cleanEmail = email !== undefined ? (email ? String(email).trim().toLowerCase() : null) : currentProvider.email;
+      if (cleanEmail) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(cleanEmail)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Please provide a valid email address.'
+          });
+        }
+
+        // Check email uniqueness if changed
+        if (cleanEmail !== (currentProvider.email ? currentProvider.email.toLowerCase() : null)) {
+          const existingWithEmail = await Provider.findByEmail(cleanEmail);
+          if (existingWithEmail && existingWithEmail.provider_id !== providerId) {
+            return res.status(409).json({
+              success: false,
+              message: 'This email address is already registered to another provider account.'
+            });
+          }
+        }
+      }
+
+      // 4. Update profile in database
+      await Provider.updateProfile(providerId, {
+        full_name: full_name.trim(),
+        mobile: newMobile,
+        email: cleanEmail,
+        provider_type: provider_type ? provider_type.trim() : (currentProvider.provider_type || 'healthcare_provider'),
+        clinic_name: clinic_name ? clinic_name.trim() : null,
+        city: city ? city.trim() : null,
+        state: state ? state.trim() : null
+      });
+
+      // Fetch fresh updated safe provider record (no password_hash)
+      const updatedProvider = await Provider.findById(providerId);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Provider profile updated successfully.',
+        provider: updatedProvider
+      });
+    } catch (error) {
+      console.error('[providerController.updateProfile] Error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error updating provider profile.'
+      });
+    }
+  },
+
+  /**
    * Validate a scanned QR access token and return authorized patient data
    * POST /api/provider/scan-qr
    * Body: { access_token: string }
@@ -272,9 +385,9 @@ const providerController = {
   async scanQR(req, res) {
     try {
       const providerId = req.user.providerId || req.user.id;
-      const { access_token } = req.body;
+      const token = req.body.access_token || req.body.token;
 
-      if (!access_token || !access_token.trim()) {
+      if (!token || !String(token).trim()) {
         return res.status(400).json({
           success: false,
           message: 'QR access token is required'
@@ -294,7 +407,7 @@ const providerController = {
         FROM qr_access
         WHERE access_token = ?
         LIMIT 1`,
-        [access_token.trim()]
+        [String(token).trim()]
       );
 
       if (!qrRows.length) {
@@ -316,8 +429,13 @@ const providerController = {
         });
       }
 
-      // 3. Check permission
-      if (qrRecord.permission !== 'view') {
+      // 3. Parse and check permission
+      // Permission can be 'view', 'all', or comma-separated permissions like 'healthRecords,documents,vaccinations'
+      const rawPerm = (qrRecord.permission || '').trim();
+      const lowerPerm = rawPerm.toLowerCase();
+
+      // If explicit revoked/none
+      if (!rawPerm || lowerPerm === 'none' || lowerPerm === 'revoked') {
         return res.status(403).json({
           success: false,
           errorCode: 'UNAUTHORIZED_ACCESS',
@@ -325,13 +443,37 @@ const providerController = {
         });
       }
 
-      // 4. Check provider relationship if assigned
+      // Allow full access if 'view', 'all', or wildcard
+      const hasFullAccess = lowerPerm === 'view' || lowerPerm === 'all' || lowerPerm === '*';
+      const allowRecords = hasFullAccess || lowerPerm.includes('healthrecord');
+      const allowDocs = hasFullAccess || lowerPerm.includes('document');
+      const allowVaccines = hasFullAccess || lowerPerm.includes('vaccin');
+
+      // Patient profile is always viewable if any access is granted; if none of the categories are granted:
+      if (!hasFullAccess && !allowRecords && !allowDocs && !allowVaccines) {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'UNAUTHORIZED_ACCESS',
+          message: 'Access revoked or unauthorized. View permission is required.'
+        });
+      }
+
+      // 4. Check provider relationship if assigned, or record provider relationship if unassigned
       if (qrRecord.provider_id && qrRecord.provider_id !== providerId) {
         return res.status(403).json({
           success: false,
           errorCode: 'UNAUTHORIZED_PROVIDER',
           message: 'This QR code was issued for a different healthcare provider.'
         });
+      }
+
+      // If token had no provider explicitly bound, bind it to this authenticated provider upon successful scan
+      if (!qrRecord.provider_id) {
+        await pool.execute(
+          `UPDATE qr_access SET provider_id = ? WHERE access_id = ?`,
+          [providerId, qrRecord.access_id]
+        );
+        qrRecord.provider_id = providerId;
       }
 
       const authorizedUserId = qrRecord.user_id;
@@ -365,40 +507,48 @@ const providerController = {
 
       const patient = userRows[0];
 
-      // Fetch health records with attachments (read-only)
+      // Fetch health records with attachments (read-only) if permitted
       const HealthRecord = require('../models/HealthRecord');
-      const healthRecords = await HealthRecord.findByUserId(authorizedUserId);
+      const healthRecords = allowRecords ? await HealthRecord.findByUserId(authorizedUserId) : [];
 
-      // Fetch documents (read-only, metadata + file_url)
-      const [documents] = await pool.execute(
-        `SELECT
-          document_id,
-          user_id,
-          document_type,
-          document_name,
-          file_url,
-          uploaded_at
-        FROM documents
-        WHERE user_id = ?
-        ORDER BY uploaded_at DESC`,
-        [authorizedUserId]
-      );
+      // Fetch documents (read-only, metadata + file_url) if permitted
+      let documents = [];
+      if (allowDocs) {
+        const [docs] = await pool.execute(
+          `SELECT
+            document_id,
+            user_id,
+            document_type,
+            document_name,
+            file_url,
+            uploaded_at
+          FROM documents
+          WHERE user_id = ?
+          ORDER BY uploaded_at DESC`,
+          [authorizedUserId]
+        );
+        documents = docs;
+      }
 
-      // Fetch vaccinations (read-only)
-      const [vaccinations] = await pool.execute(
-        `SELECT
-          vaccination_id,
-          user_id,
-          vaccine_name,
-          vaccination_date,
-          next_due_date,
-          notes,
-          created_at
-        FROM vaccinations
-        WHERE user_id = ?
-        ORDER BY vaccination_date DESC, created_at DESC`,
-        [authorizedUserId]
-      );
+      // Fetch vaccinations (read-only) if permitted
+      let vaccinations = [];
+      if (allowVaccines) {
+        const [vaxes] = await pool.execute(
+          `SELECT
+            vaccination_id,
+            user_id,
+            vaccine_name,
+            vaccination_date,
+            next_due_date,
+            notes,
+            created_at
+          FROM vaccinations
+          WHERE user_id = ?
+          ORDER BY vaccination_date DESC, created_at DESC`,
+          [authorizedUserId]
+        );
+        vaccinations = vaxes;
+      }
 
       return res.status(200).json({
         success: true,
@@ -410,7 +560,12 @@ const providerController = {
           access_id: qrRecord.access_id,
           access_token: qrRecord.access_token,
           permission: qrRecord.permission,
-          expires_at: qrRecord.expires_at
+          expires_at: qrRecord.expires_at,
+          granted_categories: {
+            healthRecords: allowRecords,
+            documents: allowDocs,
+            vaccinations: allowVaccines
+          }
         }
       });
     } catch (error) {
@@ -474,8 +629,13 @@ const providerController = {
         });
       }
 
-      // 3. Check permission
-      if (qrRecord.permission !== 'view') {
+      // 3. Parse and check permission
+      // Permission can be 'view', 'all', or comma-separated permissions like 'healthRecords,documents,vaccinations'
+      const rawPerm = (qrRecord.permission || '').trim();
+      const lowerPerm = rawPerm.toLowerCase();
+
+      // If explicit revoked/none
+      if (!rawPerm || lowerPerm === 'none' || lowerPerm === 'revoked') {
         return res.status(403).json({
           success: false,
           errorCode: 'UNAUTHORIZED_ACCESS',
@@ -483,13 +643,37 @@ const providerController = {
         });
       }
 
-      // 4. Check provider relationship if assigned
+      // Allow full access if 'view', 'all', or wildcard
+      const hasFullAccess = lowerPerm === 'view' || lowerPerm === 'all' || lowerPerm === '*';
+      const allowRecords = hasFullAccess || lowerPerm.includes('healthrecord');
+      const allowDocs = hasFullAccess || lowerPerm.includes('document');
+      const allowVaccines = hasFullAccess || lowerPerm.includes('vaccin');
+
+      // Patient profile is always viewable if any access is granted; if none of the categories are granted:
+      if (!hasFullAccess && !allowRecords && !allowDocs && !allowVaccines) {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'UNAUTHORIZED_ACCESS',
+          message: 'Access revoked or unauthorized. View permission is required.'
+        });
+      }
+
+      // 4. Check provider relationship if assigned, or record provider relationship if unassigned
       if (qrRecord.provider_id && qrRecord.provider_id !== providerId) {
         return res.status(403).json({
           success: false,
           errorCode: 'UNAUTHORIZED_PROVIDER',
           message: 'This QR code was issued for a different healthcare provider.'
         });
+      }
+
+      // If token had no provider explicitly bound, bind it to this authenticated provider upon successful scan
+      if (!qrRecord.provider_id) {
+        await pool.execute(
+          `UPDATE qr_access SET provider_id = ? WHERE access_id = ?`,
+          [providerId, qrRecord.access_id]
+        );
+        qrRecord.provider_id = providerId;
       }
 
       const authorizedUserId = qrRecord.user_id;
@@ -523,40 +707,48 @@ const providerController = {
 
       const patient = userRows[0];
 
-      // Fetch health records with attachments (read-only)
+      // Fetch health records with attachments (read-only) if permitted
       const HealthRecord = require('../models/HealthRecord');
-      const healthRecords = await HealthRecord.findByUserId(authorizedUserId);
+      const healthRecords = allowRecords ? await HealthRecord.findByUserId(authorizedUserId) : [];
 
-      // Fetch documents (read-only)
-      const [documents] = await pool.execute(
-        `SELECT
-          document_id,
-          user_id,
-          document_type,
-          document_name,
-          file_url,
-          uploaded_at
-        FROM documents
-        WHERE user_id = ?
-        ORDER BY uploaded_at DESC`,
-        [authorizedUserId]
-      );
+      // Fetch documents (read-only) if permitted
+      let documents = [];
+      if (allowDocs) {
+        const [docs] = await pool.execute(
+          `SELECT
+            document_id,
+            user_id,
+            document_type,
+            document_name,
+            file_url,
+            uploaded_at
+          FROM documents
+          WHERE user_id = ?
+          ORDER BY uploaded_at DESC`,
+          [authorizedUserId]
+        );
+        documents = docs;
+      }
 
-      // Fetch vaccinations (read-only)
-      const [vaccinations] = await pool.execute(
-        `SELECT
-          vaccination_id,
-          user_id,
-          vaccine_name,
-          vaccination_date,
-          next_due_date,
-          notes,
-          created_at
-        FROM vaccinations
-        WHERE user_id = ?
-        ORDER BY vaccination_date DESC, created_at DESC`,
-        [authorizedUserId]
-      );
+      // Fetch vaccinations (read-only) if permitted
+      let vaccinations = [];
+      if (allowVaccines) {
+        const [vaxes] = await pool.execute(
+          `SELECT
+            vaccination_id,
+            user_id,
+            vaccine_name,
+            vaccination_date,
+            next_due_date,
+            notes,
+            created_at
+          FROM vaccinations
+          WHERE user_id = ?
+          ORDER BY vaccination_date DESC, created_at DESC`,
+          [authorizedUserId]
+        );
+        vaccinations = vaxes;
+      }
 
       return res.status(200).json({
         success: true,
@@ -566,9 +758,13 @@ const providerController = {
         vaccinations,
         accessInfo: {
           access_id: qrRecord.access_id,
-          access_token: qrRecord.access_token,
           permission: qrRecord.permission,
-          expires_at: qrRecord.expires_at
+          expires_at: qrRecord.expires_at,
+          granted_categories: {
+            healthRecords: allowRecords,
+            documents: allowDocs,
+            vaccinations: allowVaccines
+          }
         }
       });
     } catch (error) {
@@ -576,6 +772,261 @@ const providerController = {
       return res.status(500).json({
         success: false,
         message: 'Server error retrieving authorized patient details.'
+      });
+    }
+  },
+
+  /**
+   * Get patient history accessed by the authenticated provider
+   * GET /api/provider/history
+   * Requires JWT with role: 'healthcare_provider'
+   * Returns list of patients who have shared QR access with this provider.
+   * Does NOT expose raw access tokens.
+   */
+  async getHistory(req, res) {
+    try {
+      const providerId = req.user.providerId || req.user.id;
+
+      const [rows] = await pool.execute(
+        `SELECT
+          q.access_id,
+          q.user_id,
+          q.permission,
+          q.expires_at,
+          q.created_at AS accessed_at,
+          u.full_name,
+          u.gender,
+          u.date_of_birth,
+          u.blood_group,
+          u.city,
+          u.state
+        FROM qr_access q
+        INNER JOIN users u ON q.user_id = u.user_id
+        WHERE q.provider_id = ?
+        ORDER BY q.created_at DESC`,
+        [providerId]
+      );
+
+      const history = rows.map((row) => {
+        const isExpired = row.expires_at && new Date(row.expires_at) < new Date();
+        const permStr = (row.permission || '').toLowerCase();
+        const isRevoked = !permStr || permStr === 'none' || permStr === 'revoked';
+
+        let status = 'active';
+        if (isRevoked) {
+          status = 'revoked';
+        } else if (isExpired) {
+          status = 'expired';
+        }
+
+        return {
+          access_id: row.access_id,
+          user_id: row.user_id,
+          full_name: row.full_name,
+          gender: row.gender,
+          date_of_birth: row.date_of_birth,
+          blood_group: row.blood_group,
+          city: row.city,
+          state: row.state,
+          permission: row.permission,
+          expires_at: row.expires_at,
+          accessed_at: row.accessed_at,
+          status // 'active' | 'expired' | 'revoked'
+        };
+      });
+
+      return res.status(200).json({
+        success: true,
+        count: history.length,
+        history
+      });
+    } catch (error) {
+      console.error('[providerController.getHistory] Error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error retrieving patient history.'
+      });
+    }
+  },
+
+  /**
+   * Get patient details by access_id from provider history
+   * GET /api/provider/history/:accessId
+   * Requires JWT with role: 'healthcare_provider'
+   * Validates:
+   *  1. access_id exists in qr_access
+   *  2. provider_id matches authenticated provider
+   *  3. Token has not expired (expires_at >= NOW())
+   *  4. Permission is not revoked
+   */
+  async getHistoryPatientDetails(req, res) {
+    try {
+      const providerId = req.user.providerId || req.user.id;
+      const { accessId } = req.params;
+
+      if (!accessId || isNaN(Number(accessId))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Valid access ID is required.'
+        });
+      }
+
+      // 1. Look up by access_id
+      const [qrRows] = await pool.execute(
+        `SELECT
+          access_id,
+          user_id,
+          provider_id,
+          permission,
+          expires_at,
+          created_at
+        FROM qr_access
+        WHERE access_id = ?
+        LIMIT 1`,
+        [Number(accessId)]
+      );
+
+      if (!qrRows.length) {
+        return res.status(404).json({
+          success: false,
+          errorCode: 'PATIENT_NOT_FOUND',
+          message: 'Patient access record not found in history.'
+        });
+      }
+
+      const qrRecord = qrRows[0];
+
+      // 2. Cross-provider validation: Must belong to authenticated provider
+      if (qrRecord.provider_id !== providerId) {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'UNAUTHORIZED_PROVIDER',
+          message: 'You are not authorized to view this patient access record.'
+        });
+      }
+
+      // 3. Expiration validation
+      if (qrRecord.expires_at && new Date(qrRecord.expires_at) < new Date()) {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'EXPIRED_ACCESS',
+          message: 'This patient authorization has expired. A fresh QR code scan is required to view medical details.'
+        });
+      }
+
+      // 4. Permission validation
+      const rawPerm = (qrRecord.permission || '').trim();
+      const lowerPerm = rawPerm.toLowerCase();
+      if (!rawPerm || lowerPerm === 'none' || lowerPerm === 'revoked') {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'REVOKED_ACCESS',
+          message: 'Access to this patient record has been revoked by the patient.'
+        });
+      }
+
+      const hasFullAccess = lowerPerm === 'view' || lowerPerm === 'all' || lowerPerm === '*';
+      const allowRecords = hasFullAccess || lowerPerm.includes('healthrecord');
+      const allowDocs = hasFullAccess || lowerPerm.includes('document');
+      const allowVaccines = hasFullAccess || lowerPerm.includes('vaccin');
+
+      const authorizedUserId = qrRecord.user_id;
+
+      // 5. Fetch patient profile
+      const [userRows] = await pool.execute(
+        `SELECT
+          user_id,
+          full_name,
+          mobile,
+          email,
+          date_of_birth,
+          gender,
+          city,
+          state,
+          blood_group,
+          emergency_contact,
+          created_at
+        FROM users
+        WHERE user_id = ?
+        LIMIT 1`,
+        [authorizedUserId]
+      );
+
+      if (!userRows.length) {
+        return res.status(404).json({
+          success: false,
+          errorCode: 'PATIENT_NOT_FOUND',
+          message: 'Patient user account was not found.'
+        });
+      }
+
+      const patient = userRows[0];
+
+      // 6. Fetch health records with attachments if permitted
+      const HealthRecord = require('../models/HealthRecord');
+      const healthRecords = allowRecords ? await HealthRecord.findByUserId(authorizedUserId) : [];
+
+      // 7. Fetch documents if permitted
+      let documents = [];
+      if (allowDocs) {
+        const [docs] = await pool.execute(
+          `SELECT
+            document_id,
+            user_id,
+            document_type,
+            document_name,
+            file_url,
+            uploaded_at
+          FROM documents
+          WHERE user_id = ?
+          ORDER BY uploaded_at DESC`,
+          [authorizedUserId]
+        );
+        documents = docs;
+      }
+
+      // 8. Fetch vaccinations if permitted
+      let vaccinations = [];
+      if (allowVaccines) {
+        const [vaxes] = await pool.execute(
+          `SELECT
+            vaccination_id,
+            user_id,
+            vaccine_name,
+            vaccination_date,
+            next_due_date,
+            notes,
+            created_at
+          FROM vaccinations
+          WHERE user_id = ?
+          ORDER BY vaccination_date DESC, created_at DESC`,
+          [authorizedUserId]
+        );
+        vaccinations = vaxes;
+      }
+
+      return res.status(200).json({
+        success: true,
+        patient,
+        healthRecords,
+        documents,
+        vaccinations,
+        accessInfo: {
+          access_id: qrRecord.access_id,
+          permission: qrRecord.permission,
+          expires_at: qrRecord.expires_at,
+          granted_categories: {
+            healthRecords: allowRecords,
+            documents: allowDocs,
+            vaccinations: allowVaccines
+          }
+        }
+      });
+    } catch (error) {
+      console.error('[providerController.getHistoryPatientDetails] Error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error retrieving patient details from history.'
       });
     }
   }
