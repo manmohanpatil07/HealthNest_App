@@ -3,12 +3,18 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+// 1. Fallback laptop LAN IP for physical device / standalone APK builds
+const DEFAULT_LAN_IP = '10.49.97.156';
+
 /**
  * HealthNest Base Axios Instance
- * Automatically detects your computer's IP address when running via Expo Go.
+ * Dynamically resolves API URL:
+ * - Explicit EXPO_PUBLIC_API_URL environment variable
+ * - Expo Go host machine IP (in development mode)
+ * - Default LAN IP for physical Android/iOS APK builds
  */
 const getBaseUrl = () => {
-  // 1. If an explicit environment variable is set, prioritize it
+  // 1. Explicit environment variable always takes highest priority
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
@@ -20,13 +26,8 @@ const getBaseUrl = () => {
     return `http://${ip}:5000/api`;
   }
 
-  // 3. Android Studio Emulator fallback:
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5000/api';
-  }
-
-  // 4. Default / Physical device fallback IP:
-  return 'http://10.49.97.156:5000/api';
+  // 3. Standalone APK or Physical Device: use the laptop LAN IP
+  return `http://${DEFAULT_LAN_IP}:5000/api`;
 };
 
 export const API_BASE_URL = getBaseUrl();
