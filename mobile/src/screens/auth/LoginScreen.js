@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { COLORS } from '../../constants';
 import { AppInput, AppButton, ErrorMessage } from '../../components';
@@ -114,7 +115,19 @@ export default function LoginScreen({ navigation }) {
             required
           />
 
-          <TouchableOpacity style={styles.forgotBtn}>
+          <TouchableOpacity
+            style={styles.forgotBtn}
+            onPress={() => {
+              Alert.alert(
+                'Password Recovery',
+                'To reset your password, please contact HealthNest support or sign in using OTP verification.',
+                [
+                  { text: 'Use OTP', onPress: () => navigation.navigate('OTPVerification') },
+                  { text: 'OK', style: 'cancel' }
+                ]
+              );
+            }}
+          >
             <Text style={styles.forgotText}>{t('auth.forgotPassword')}</Text>
           </TouchableOpacity>
 

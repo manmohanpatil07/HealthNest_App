@@ -16,6 +16,7 @@ import HospitalDetailsCard from './HospitalDetailsCard';
 import CallButton from './CallButton';
 import DirectionsButton from './DirectionsButton';
 import LocationSelectorPanel from './LocationSelectorPanel';
+import HealthRecordCard from './HealthRecordCard';
 
 export {
   AppButton,
@@ -36,6 +37,7 @@ export {
   CallButton,
   DirectionsButton,
   LocationSelectorPanel,
+  HealthRecordCard,
 };
 
 export default {
@@ -57,4 +59,5 @@ export default {
   CallButton,
   DirectionsButton,
   LocationSelectorPanel,
+  HealthRecordCard,
 };

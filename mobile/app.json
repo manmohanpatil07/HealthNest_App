@@ -34,7 +34,8 @@
         {
           "cameraPermission": "Allow HealthNest to access your camera to scan patient QR codes."
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }
