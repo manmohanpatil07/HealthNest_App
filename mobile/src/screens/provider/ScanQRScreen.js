@@ -12,6 +12,7 @@ import {
   Linking,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useIsFocused } from '@react-navigation/native';
 import { providerService } from '../../services/providerService';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -20,6 +21,7 @@ const SCAN_FRAME_SIZE = 260;
 
 export default function ScanQRScreen({ navigation }) {
   const { t } = useLanguage();
+  const isFocused = useIsFocused();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanningActive, setIsScanningActive] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
@@ -27,14 +29,50 @@ export default function ScanQRScreen({ navigation }) {
   const [scanStatus, setScanStatus] = useState('idle'); // 'idle' | 'scanning' | 'verifying' | 'success' | 'invalid' | 'expired' | 'error'
   const [errorMessage, setErrorMessage] = useState('');
   const [hasScanned, setHasScanned] = useState(false);
-  const [cameraReady, setCameraReady] = useState(false);
 
   // Scanline animation
   const scanLineAnim = useRef(new Animated.Value(0)).current;
   const scanAnimRef = useRef(null);
 
+  // Auto-request permission and activate scanner when screen is focused
   useEffect(() => {
-    if (isScanningActive && !hasScanned && cameraReady) {
+    let isMounted = true;
+
+    async function initScanner() {
+      if (!isFocused) {
+        setIsScanningActive(false);
+        return;
+      }
+
+      if (!permission) {
+        // Permissions not loaded yet
+        return;
+      }
+
+      if (permission.granted) {
+        if (isMounted) {
+          setIsScanningActive(true);
+          setScanStatus((prev) => (prev === 'verifying' || prev === 'success' ? prev : 'scanning'));
+        }
+      } else if (permission.canAskAgain) {
+        const res = await requestPermission();
+        if (res?.granted && isMounted) {
+          setIsScanningActive(true);
+          setScanStatus('scanning');
+        }
+      }
+    }
+
+    initScanner();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isFocused, permission, requestPermission]);
+
+  // Handle scan line animation loop while scanning
+  useEffect(() => {
+    if (isFocused && isScanningActive && !hasScanned) {
       const anim = Animated.loop(
         Animated.sequence([
           Animated.timing(scanLineAnim, {
@@ -65,7 +103,7 @@ export default function ScanQRScreen({ navigation }) {
         scanAnimRef.current = null;
       }
     };
-  }, [isScanningActive, hasScanned, cameraReady]);
+  }, [isFocused, isScanningActive, hasScanned]);
 
   const handleStartScanning = async () => {
     if (!permission?.granted) {
@@ -94,100 +132,90 @@ export default function ScanQRScreen({ navigation }) {
       if (!result.granted) {
         Alert.alert(
           'Camera Permission Required',
-          'Camera access is required to scan the patient\'s QR Health Card. Please enable camera access in your device settings.'
+          "Camera access is required to scan the patient's QR Health Card. Please enable camera access in your device settings."
         );
         return;
       }
     }
-    setCameraReady(false);
     setScanStatus('scanning');
     setHasScanned(false);
     setIsScanningActive(true);
     setErrorMessage('');
   };
 
-  const handleCameraReady = useCallback(() => {
-    setCameraReady(true);
-  }, []);
+  const handleBarCodeScanned = useCallback(
+    async ({ data }) => {
+      // Prevent duplicate scans while processing
+      if (hasScanned || loading) return;
 
-  const handleBarCodeScanned = useCallback(async ({ data }) => {
-    // Prevent duplicate scans while processing
-    if (hasScanned || loading) return;
+      setHasScanned(true);
+      setIsScanningActive(false);
+      setScanStatus('verifying');
+      setLoading(true);
 
-    setHasScanned(true);
-    setIsScanningActive(false);
-    setScanStatus('verifying');
-    setLoading(true);
+      try {
+        // Scanned data is expected to be an access token string (e.g. HN-2026-XXXX-XXXX) or JSON containing access_token
+        let rawToken = data ? String(data).trim() : '';
 
-    try {
-      // Scanned data is expected to be an access token string (e.g. HN-2026-XXXX-XXXX) or JSON containing access_token
-      let rawToken = data ? String(data).trim() : '';
+        if (rawToken.startsWith('{') && rawToken.endsWith('}')) {
+          try {
+            const parsed = JSON.parse(rawToken);
+            rawToken = parsed.access_token || parsed.token || rawToken;
+          } catch (e) {
+            // not json, use raw string
+          }
+        }
 
-      if (rawToken.startsWith('{') && rawToken.endsWith('}')) {
-        try {
-          const parsed = JSON.parse(rawToken);
-          rawToken = parsed.access_token || parsed.token || rawToken;
-        } catch (e) {
-          // not json, use raw string
+        if (!rawToken) {
+          setScanStatus('invalid');
+          setErrorMessage('This does not appear to be a valid HealthNest QR code. Please try again.');
+          setLoading(false);
+          return;
+        }
+
+        const res = await providerService.scanQR(rawToken);
+
+        if (res && res.success) {
+          setScanStatus('success');
+          setLoading(false);
+          // Short delay to display green verification success state before navigating
+          setTimeout(() => {
+            navigation.navigate('PatientDetails', {
+              patient: res.patient,
+              healthRecords: res.healthRecords,
+              documents: res.documents,
+              vaccinations: res.vaccinations,
+              accessInfo: res.accessInfo,
+            });
+          }, 1200);
+        } else {
+          setScanStatus('invalid');
+          setErrorMessage(res?.message || 'Invalid or unauthorized QR code.');
+          setLoading(false);
+        }
+      } catch (err) {
+        setLoading(false);
+        const errData = err.response?.data;
+        const errorCode = errData?.errorCode;
+        const message = errData?.message;
+
+        if (errorCode === 'EXPIRED_QR') {
+          setScanStatus('expired');
+          setErrorMessage(message || 'Ask the patient to regenerate their QR code from the HealthNest app.');
+        } else if (errorCode === 'INVALID_QR') {
+          setScanStatus('invalid');
+          setErrorMessage(message || 'This does not appear to be a valid HealthNest QR code. Please try again.');
+        } else {
+          setScanStatus('error');
+          setErrorMessage(message || 'Unable to authorize access. Please check your connection and try again.');
         }
       }
+    },
+    [hasScanned, loading, navigation]
+  );
 
-      if (!rawToken) {
-        setScanStatus('invalid');
-        setErrorMessage('This does not appear to be a valid HealthNest QR code. Please try again.');
-        setLoading(false);
-        return;
-      }
-
-      const res = await providerService.scanQR(rawToken);
-
-      if (res && res.success) {
-        setScanStatus('success');
-        setLoading(false);
-        // Short delay to display green verification success state before navigating
-        setTimeout(() => {
-          navigation.navigate('PatientDetails', {
-            patient: res.patient,
-            healthRecords: res.healthRecords,
-            documents: res.documents,
-            vaccinations: res.vaccinations,
-            accessInfo: res.accessInfo,
-          });
-        }, 1200);
-      } else {
-        setScanStatus('invalid');
-        setErrorMessage(res?.message || 'Invalid or unauthorized QR code.');
-        setLoading(false);
-      }
-    } catch (err) {
-      setLoading(false);
-      const errData = err.response?.data;
-      const errorCode = errData?.errorCode;
-      const message = errData?.message;
-
-      if (errorCode === 'EXPIRED_QR') {
-        setScanStatus('expired');
-        setErrorMessage(message || 'Ask the patient to regenerate their QR code from the HealthNest app.');
-      } else if (errorCode === 'INVALID_QR') {
-        setScanStatus('invalid');
-        setErrorMessage(message || 'This does not appear to be a valid HealthNest QR code. Please try again.');
-      } else {
-        setScanStatus('error');
-        setErrorMessage(message || 'Unable to authorize access. Please check your connection and try again.');
-      }
-    }
-  }, [hasScanned, loading, navigation]);
-
-  const handleResetScan = () => {
-    setHasScanned(false);
-    setScanStatus('idle');
-    setErrorMessage('');
-    setIsScanningActive(false);
-    setCameraReady(false);
-  };
-
-  // Determine if the camera component should be rendered
-  const showCamera = permission?.granted && isScanningActive;
+  // Mount camera ONLY when screen is focused, permission granted, and scanning active
+  const showCamera = isFocused && permission?.granted && isScanningActive;
 
   return (
     <View style={styles.container}>
@@ -211,7 +239,7 @@ export default function ScanQRScreen({ navigation }) {
 
       {/* Camera / Scanner Frame Container */}
       <View style={styles.scannerWrapper}>
-        {/* Layer 1 (bottom): Camera preview OR placeholder — fills the entire scanner area */}
+        {/* Layer 1 (bottom): Camera preview OR placeholder */}
         {showCamera ? (
           <CameraView
             style={styles.cameraFill}
@@ -221,28 +249,36 @@ export default function ScanQRScreen({ navigation }) {
               barcodeTypes: ['qr'],
             }}
             onBarcodeScanned={hasScanned ? undefined : handleBarCodeScanned}
-            onCameraReady={handleCameraReady}
           />
         ) : (
           <View style={styles.cameraPlaceholder}>
             <Text style={styles.cameraPlaceholderIcon}>📷</Text>
             <Text style={styles.cameraPlaceholderText}>
-              {permission?.granted
-                ? 'Camera ready'
-                : 'Camera permission required'}
+              {!permission
+                ? t('provider.initializingCamera')
+                : !permission.granted
+                ? t('common.error')
+                : hasScanned
+                ? t('provider.qrVerified')
+                : t('provider.cameraActivePrompt')}
             </Text>
+            {permission && !permission.granted && (
+              <TouchableOpacity
+                style={styles.grantPermissionBtn}
+                onPress={handleStartScanning}
+              >
+                <Text style={styles.grantPermissionBtnText}>Grant Camera Access</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
-        {/* Layer 2 (top): Transparent overlay with viewfinder frame — sits above camera */}
+        {/* Layer 2 (top): Transparent overlay with viewfinder frame */}
         <View style={styles.overlay} pointerEvents="box-none">
-          {/* Semi-transparent darkened border around the cutout */}
-          {/* Top dark region */}
           <View style={styles.overlayDarkTop} />
-          {/* Middle row: left dark | transparent cutout | right dark */}
           <View style={styles.overlayMiddleRow}>
             <View style={styles.overlayDarkSide} />
-            {/* The transparent viewfinder cutout */}
+            {/* Viewfinder cutout */}
             <View
               style={[
                 styles.targetFrame,
@@ -251,7 +287,7 @@ export default function ScanQRScreen({ navigation }) {
                 scanStatus === 'expired' && styles.targetFrameExpired,
               ]}
             >
-              {/* 4 Corner Markers */}
+              {/* Corner Markers */}
               <View
                 style={[
                   styles.cornerTopLeft,
@@ -286,7 +322,7 @@ export default function ScanQRScreen({ navigation }) {
               />
 
               {/* Scanning Line Animation */}
-              {isScanningActive && !hasScanned && cameraReady && (
+              {showCamera && !hasScanned && (
                 <Animated.View
                   style={[
                     styles.scanLine,
@@ -303,14 +339,6 @@ export default function ScanQRScreen({ navigation }) {
                   <Text style={styles.frameCenterText}>
                     Position patient's QR code within the frame
                   </Text>
-                </View>
-              )}
-
-              {/* Camera loading indicator (camera mounted but not yet ready) */}
-              {showCamera && !cameraReady && scanStatus === 'scanning' && (
-                <View style={styles.statusIndicatorCenter}>
-                  <ActivityIndicator size="large" color="#38BDF8" />
-                  <Text style={styles.verifyingText}>{t('provider.initializingCamera')}</Text>
                 </View>
               )}
 
@@ -350,7 +378,6 @@ export default function ScanQRScreen({ navigation }) {
             </View>
             <View style={styles.overlayDarkSide} />
           </View>
-          {/* Bottom dark region */}
           <View style={styles.overlayDarkBottom} />
         </View>
       </View>
@@ -374,17 +401,8 @@ export default function ScanQRScreen({ navigation }) {
 
         {scanStatus === 'scanning' && (
           <View style={styles.scanningPromptBox}>
-            {cameraReady ? (
-              <>
-                <View style={styles.scanningDot} />
-                <Text style={styles.scanningPromptText}>{t('provider.cameraActivePrompt')}</Text>
-              </>
-            ) : (
-              <>
-                <ActivityIndicator size="small" color="#0D9488" style={{ marginRight: 8 }} />
-                <Text style={styles.scanningPromptText}>{t('provider.initializingCamera')}</Text>
-              </>
-            )}
+            <View style={styles.scanningDot} />
+            <Text style={styles.scanningPromptText}>{t('provider.cameraActivePrompt')}</Text>
           </View>
         )}
 
@@ -501,7 +519,6 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: 'hidden',
   },
-  // Camera fills the entire scanner area (positioned absolutely)
   cameraFill: {
     ...StyleSheet.absoluteFillObject,
   },
@@ -510,6 +527,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E293B',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
   },
   cameraPlaceholderIcon: {
     fontSize: 48,
@@ -518,9 +536,22 @@ const styles = StyleSheet.create({
   cameraPlaceholderText: {
     color: '#94A3B8',
     fontSize: 14,
+    textAlign: 'center',
+  },
+  grantPermissionBtn: {
+    marginTop: 16,
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  grantPermissionBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
   },
 
-  // ── Overlay (sits on top of camera, provides darkened border + transparent cutout) ──
+  // ── Overlay ──────────────────────────────────────────────────
   overlay: {
     ...StyleSheet.absoluteFillObject,
   },
@@ -541,7 +572,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.65)',
   },
 
-  // ── Target frame (the transparent cutout where the camera shows through) ──
+  // ── Target frame ─────────────────────────────────────────────
   targetFrame: {
     width: SCAN_FRAME_SIZE,
     height: SCAN_FRAME_SIZE,
@@ -551,7 +582,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
-    // transparent background — lets the camera show through
     backgroundColor: 'transparent',
   },
   targetFrameSuccess: {
@@ -583,7 +613,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 4,
     borderRightWidth: 4,
     borderColor: '#0284C7',
-    borderTopRightRadius: 18,
+    borderTopRightLeftRadius: 18,
   },
   cornerBottomLeft: {
     position: 'absolute',
@@ -607,51 +637,43 @@ const styles = StyleSheet.create({
     borderColor: '#0284C7',
     borderBottomRightRadius: 18,
   },
-  cornerSuccess: {
-    borderColor: '#22C55E',
-  },
-  cornerInvalid: {
-    borderColor: '#EF4444',
-  },
-  cornerExpired: {
-    borderColor: '#F59E0B',
-  },
   scanLine: {
     position: 'absolute',
     top: 2,
-    left: 8,
-    right: 8,
-    height: 3,
+    left: 4,
+    right: 4,
+    height: 2,
     backgroundColor: '#38BDF8',
-    borderRadius: 2,
     shadowColor: '#38BDF8',
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 4,
   },
   frameCenterTextContainer: {
-    paddingHorizontal: 20,
-    alignItems: 'center',
+    paddingHorizontal: 24,
   },
   frameCenterText: {
-    color: 'rgba(255, 255, 255, 0.75)',
+    color: '#94A3B8',
     fontSize: 13,
     textAlign: 'center',
-    fontWeight: '500',
     lineHeight: 18,
   },
   statusIndicatorCenter: {
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
   },
   verifyingText: {
     color: '#38BDF8',
     fontSize: 14,
-    fontWeight: '700',
-    marginTop: 10,
+    fontWeight: '600',
+    marginTop: 12,
   },
   successCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: '#22C55E',
     justifyContent: 'center',
     alignItems: 'center',
@@ -659,18 +681,18 @@ const styles = StyleSheet.create({
   },
   successCheck: {
     color: '#FFFFFF',
-    fontSize: 30,
-    fontWeight: '800',
+    fontSize: 28,
+    fontWeight: 'bold',
   },
   successText: {
     color: '#22C55E',
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
   },
   invalidCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
@@ -678,18 +700,18 @@ const styles = StyleSheet.create({
   },
   invalidCross: {
     color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '800',
+    fontSize: 28,
+    fontWeight: 'bold',
   },
   invalidText: {
     color: '#EF4444',
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
   },
   expiredCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: '#F59E0B',
     justifyContent: 'center',
     alignItems: 'center',
@@ -697,131 +719,127 @@ const styles = StyleSheet.create({
   },
   expiredExclamation: {
     color: '#FFFFFF',
-    fontSize: 30,
-    fontWeight: '800',
+    fontSize: 28,
+    fontWeight: 'bold',
   },
   expiredText: {
     color: '#F59E0B',
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
   },
 
-  // ── Bottom section ────────────────────────────────────────────
+  // ── Bottom section ───────────────────────────────────────────
   bottomSection: {
-    paddingHorizontal: 24,
-    paddingBottom: Platform.OS === 'ios' ? 44 : 28,
-    paddingTop: 16,
-    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   instructionText: {
-    color: '#94A3B8',
-    fontSize: 13,
+    color: '#CBD5E1',
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 19,
-    marginBottom: 20,
-    paddingHorizontal: 12,
+    lineHeight: 20,
+    marginBottom: 16,
   },
   primaryActionButton: {
-    width: '100%',
-    backgroundColor: '#0D9488',
-    paddingVertical: 15,
-    borderRadius: 14,
+    backgroundColor: '#0284C7',
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 16,
   },
   primaryActionText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   scanningPromptBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    marginBottom: 16,
+    justifyContent: 'center',
+    paddingVertical: 12,
   },
   scanningDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#22C55E',
     marginRight: 8,
   },
   scanningPromptText: {
-    color: '#CCFBF1',
+    color: '#E2E8F0',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   errorPanel: {
-    width: '100%',
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
     borderColor: '#EF4444',
-    borderRadius: 16,
+    borderWidth: 1,
+    borderRadius: 12,
     padding: 16,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  errorPanelAmber: {
-    borderColor: '#F59E0B',
+    marginBottom: 12,
   },
   errorPanelTitle: {
-    fontSize: 15,
-    fontWeight: '800',
     color: '#EF4444',
-    marginBottom: 6,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  errorPanelBody: {
+    color: '#CBD5E1',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  errorPanelAmber: {
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderColor: '#F59E0B',
   },
   errorTitleAmber: {
     color: '#F59E0B',
   },
-  errorPanelBody: {
-    fontSize: 13,
-    color: '#CBD5E1',
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 14,
-  },
   errorBodyAmber: {
-    color: '#FEF3C7',
+    color: '#CBD5E1',
   },
   scanAgainButton: {
-    backgroundColor: '#EF4444',
+    backgroundColor: '#334155',
     paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 10,
+    borderRadius: 8,
+    alignItems: 'center',
   },
   scanAgainAmber: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#78350F',
   },
   scanAgainText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
   },
   successPanel: {
-    width: '100%',
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
     borderColor: '#22C55E',
-    borderRadius: 16,
+    borderWidth: 1,
+    borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    marginBottom: 16,
   },
   successPanelTitle: {
-    fontSize: 16,
-    fontWeight: '800',
     color: '#22C55E',
+    fontSize: 16,
+    fontWeight: '700',
     marginBottom: 4,
   },
   successPanelSubtitle: {
+    color: '#CBD5E1',
     fontSize: 13,
-    color: '#86EFAC',
   },
   bottomAuditNote: {
     color: '#64748B',
     fontSize: 11,
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 14,
   },
 });

@@ -1,6 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ProviderTabNavigator from './ProviderTabNavigator';
+import ScanQRScreen from '../screens/provider/ScanQRScreen';
 import PatientDetailsScreen from '../screens/provider/PatientDetailsScreen';
 import ProviderProfileScreen from '../screens/provider/ProviderProfileScreen';
 import SettingsScreen from '../screens/user/SettingsScreen';
@@ -12,6 +13,13 @@ export default function ProviderNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {/* Tab navigator as the main provider UI */}
       <Stack.Screen name="ProviderTabs" component={ProviderTabNavigator} />
+
+      {/* Direct ScanQR Screen for Stack navigation from CTA cards */}
+      <Stack.Screen
+        name="ScanQR"
+        component={ScanQRScreen}
+        options={{ title: 'Scan Patient QR' }}
+      />
 
       {/* Provider Profile Screen */}
       <Stack.Screen
@@ -36,3 +44,4 @@ export default function ProviderNavigator() {
     </Stack.Navigator>
   );
 }
+
