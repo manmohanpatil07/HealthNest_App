@@ -10,6 +10,9 @@ import {
   Platform,
   Alert,
   Linking,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useIsFocused } from '@react-navigation/native';
@@ -24,11 +27,18 @@ export default function ScanQRScreen({ navigation }) {
   const isFocused = useIsFocused();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanningActive, setIsScanningActive] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scanStatus, setScanStatus] = useState('idle'); // 'idle' | 'scanning' | 'verifying' | 'success' | 'invalid' | 'expired' | 'error'
   const [errorMessage, setErrorMessage] = useState('');
   const [hasScanned, setHasScanned] = useState(false);
+
+  // Manual token entry modal state
+  const [manualModalVisible, setManualModalVisible] = useState(false);
+  const [manualTokenInput, setManualTokenInput] = useState('');
+  const [manualError, setManualError] = useState('');
 
   // Scanline animation
   const scanLineAnim = useRef(new Animated.Value(0)).current;
@@ -41,11 +51,12 @@ export default function ScanQRScreen({ navigation }) {
     async function initScanner() {
       if (!isFocused) {
         setIsScanningActive(false);
+        setIsCameraReady(false);
         return;
       }
 
       if (!permission) {
-        // Permissions not loaded yet
+        // Permissions still loading from native module
         return;
       }
 
@@ -68,11 +79,11 @@ export default function ScanQRScreen({ navigation }) {
     return () => {
       isMounted = false;
     };
-  }, [isFocused, permission, requestPermission]);
+  }, [isFocused, permission?.granted, permission?.canAskAgain, requestPermission]);
 
-  // Handle scan line animation loop while scanning
+  // Handle scan line animation loop while scanning and camera is ready
   useEffect(() => {
-    if (isFocused && isScanningActive && !hasScanned) {
+    if (isFocused && isScanningActive && isCameraReady && !hasScanned) {
       const anim = Animated.loop(
         Animated.sequence([
           Animated.timing(scanLineAnim, {
@@ -103,50 +114,30 @@ export default function ScanQRScreen({ navigation }) {
         scanAnimRef.current = null;
       }
     };
-  }, [isFocused, isScanningActive, hasScanned]);
+  }, [isFocused, isScanningActive, isCameraReady, hasScanned]);
 
-  const handleStartScanning = async () => {
-    if (!permission?.granted) {
-      if (permission && !permission.canAskAgain) {
-        Alert.alert(
-          'Camera Permission Blocked',
-          'Camera permission is permanently denied or unavailable. Please enable camera access in your device settings to scan patient QR codes.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Open Settings',
-              onPress: () => {
-                if (Platform.OS === 'ios') {
-                  Linking.openURL('app-settings:');
-                } else {
-                  Linking.openSettings();
-                }
-              },
-            },
-          ]
-        );
-        return;
-      }
-
-      const result = await requestPermission();
-      if (!result.granted) {
-        Alert.alert(
-          'Camera Permission Required',
-          "Camera access is required to scan the patient's QR Health Card. Please enable camera access in your device settings."
-        );
-        return;
-      }
-    }
-    setScanStatus('scanning');
-    setHasScanned(false);
-    setIsScanningActive(true);
-    setErrorMessage('');
-  };
-
-  const handleBarCodeScanned = useCallback(
-    async ({ data }) => {
-      // Prevent duplicate scans while processing
+  // Process any token (from camera QR scan or manual input)
+  const processToken = useCallback(
+    async (tokenInput) => {
       if (hasScanned || loading) return;
+
+      let rawToken = tokenInput ? String(tokenInput).trim() : '';
+
+      // Support JSON encoded token payload or raw string
+      if (rawToken.startsWith('{') && rawToken.endsWith('}')) {
+        try {
+          const parsed = JSON.parse(rawToken);
+          rawToken = parsed.access_token || parsed.token || rawToken;
+        } catch (e) {
+          // not JSON, keep string
+        }
+      }
+
+      if (!rawToken) {
+        setScanStatus('invalid');
+        setErrorMessage('This does not appear to be a valid HealthNest QR code. Please try again.');
+        return;
+      }
 
       setHasScanned(true);
       setIsScanningActive(false);
@@ -154,31 +145,12 @@ export default function ScanQRScreen({ navigation }) {
       setLoading(true);
 
       try {
-        // Scanned data is expected to be an access token string (e.g. HN-2026-XXXX-XXXX) or JSON containing access_token
-        let rawToken = data ? String(data).trim() : '';
-
-        if (rawToken.startsWith('{') && rawToken.endsWith('}')) {
-          try {
-            const parsed = JSON.parse(rawToken);
-            rawToken = parsed.access_token || parsed.token || rawToken;
-          } catch (e) {
-            // not json, use raw string
-          }
-        }
-
-        if (!rawToken) {
-          setScanStatus('invalid');
-          setErrorMessage('This does not appear to be a valid HealthNest QR code. Please try again.');
-          setLoading(false);
-          return;
-        }
-
         const res = await providerService.scanQR(rawToken);
 
         if (res && res.success) {
           setScanStatus('success');
           setLoading(false);
-          // Short delay to display green verification success state before navigating
+          // Short delay to display green verification state before navigating
           setTimeout(() => {
             navigation.navigate('PatientDetails', {
               patient: res.patient,
@@ -186,6 +158,7 @@ export default function ScanQRScreen({ navigation }) {
               documents: res.documents,
               vaccinations: res.vaccinations,
               accessInfo: res.accessInfo,
+              token: rawToken,
             });
           }, 1200);
         } else {
@@ -214,8 +187,69 @@ export default function ScanQRScreen({ navigation }) {
     [hasScanned, loading, navigation]
   );
 
-  // Mount camera ONLY when screen is focused, permission granted, and scanning active
-  const showCamera = isFocused && permission?.granted && isScanningActive;
+  const handleBarCodeScanned = useCallback(
+    ({ data }) => {
+      processToken(data);
+    },
+    [processToken]
+  );
+
+  const handleStartScanning = async () => {
+    setErrorMessage('');
+    setCameraError(null);
+    setHasScanned(false);
+
+    if (!permission?.granted) {
+      if (permission && !permission.canAskAgain) {
+        Alert.alert(
+          'Camera Permission Blocked',
+          'Camera permission is permanently denied or unavailable. Please enable camera access in your device settings to scan patient QR codes.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      const result = await requestPermission();
+      if (!result?.granted) {
+        Alert.alert(
+          'Camera Permission Required',
+          "Camera access is required to scan the patient's QR Health Card. Please enable camera access in your device settings."
+        );
+        return;
+      }
+    }
+
+    setScanStatus('scanning');
+    setIsCameraReady(false);
+    setIsScanningActive(true);
+  };
+
+  const handleManualSubmit = () => {
+    if (!manualTokenInput.trim()) {
+      setManualError('Please enter a valid QR access token.');
+      return;
+    }
+    const token = manualTokenInput.trim();
+    setManualModalVisible(false);
+    setManualTokenInput('');
+    setManualError('');
+    processToken(token);
+  };
+
+  const hasPermission = Boolean(permission?.granted);
+  const showCamera = isFocused && hasPermission && isScanningActive;
 
   return (
     <View style={styles.container}>
@@ -229,27 +263,77 @@ export default function ScanQRScreen({ navigation }) {
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('provider.scanScreenTitle')}</Text>
-        <TouchableOpacity
-          style={[styles.flashButton, isTorchOn ? styles.flashActive : styles.flashInactive]}
-          onPress={() => setIsTorchOn(!isTorchOn)}
-        >
-          <Text style={styles.flashIcon}>⚡</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRightActions}>
+          <TouchableOpacity
+            style={styles.headerActionBtn}
+            onPress={() => {
+              setManualError('');
+              setManualModalVisible(true);
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.headerActionIcon}>⌨</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.flashButton, isTorchOn ? styles.flashActive : styles.flashInactive]}
+            onPress={() => setIsTorchOn(!isTorchOn)}
+          >
+            <Text style={styles.flashIcon}>⚡</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Camera / Scanner Frame Container */}
       <View style={styles.scannerWrapper}>
-        {/* Layer 1 (bottom): Camera preview OR placeholder */}
+        {/* Layer 1: Real Native Camera Preview or Fallback Placeholder */}
         {showCamera ? (
-          <CameraView
-            style={styles.cameraFill}
-            facing="back"
-            enableTorch={isTorchOn}
-            barcodeScannerSettings={{
-              barcodeTypes: ['qr'],
-            }}
-            onBarcodeScanned={hasScanned ? undefined : handleBarCodeScanned}
-          />
+          <View style={styles.cameraContainer}>
+            <CameraView
+              style={styles.cameraFill}
+              facing="back"
+              enableTorch={isTorchOn}
+              barcodeScannerSettings={{
+                barcodeTypes: ['qr'],
+              }}
+              onCameraReady={() => {
+                setIsCameraReady(true);
+                setCameraError(null);
+              }}
+              onMountError={(error) => {
+                console.warn('CameraView mount error:', error);
+                setCameraError(error?.message || 'Failed to start camera hardware.');
+              }}
+              onBarcodeScanned={hasScanned ? undefined : handleBarCodeScanned}
+            />
+
+            {/* Loading spinner while native camera hardware is binding */}
+            {!isCameraReady && !cameraError && (
+              <View style={styles.cameraLoadingOverlay}>
+                <ActivityIndicator size="large" color="#38BDF8" />
+                <Text style={styles.cameraLoadingText}>{t('provider.initializingCamera')}</Text>
+              </View>
+            )}
+
+            {/* Error view if camera hardware cannot be bound */}
+            {cameraError && (
+              <View style={styles.cameraErrorOverlay}>
+                <Text style={styles.cameraErrorIcon}>📷</Text>
+                <Text style={styles.cameraErrorTitle}>Camera Unavailable</Text>
+                <Text style={styles.cameraErrorMessage}>{cameraError}</Text>
+                <TouchableOpacity
+                  style={styles.retryCameraBtn}
+                  onPress={() => {
+                    setCameraError(null);
+                    setIsCameraReady(false);
+                    setIsScanningActive(false);
+                    setTimeout(() => setIsScanningActive(true), 250);
+                  }}
+                >
+                  <Text style={styles.retryCameraBtnText}>Retry Camera</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         ) : (
           <View style={styles.cameraPlaceholder}>
             <Text style={styles.cameraPlaceholderIcon}>📷</Text>
@@ -273,12 +357,12 @@ export default function ScanQRScreen({ navigation }) {
           </View>
         )}
 
-        {/* Layer 2 (top): Transparent overlay with viewfinder frame */}
+        {/* Layer 2: Viewfinder Target Frame Overlay */}
         <View style={styles.overlay} pointerEvents="box-none">
           <View style={styles.overlayDarkTop} />
           <View style={styles.overlayMiddleRow}>
             <View style={styles.overlayDarkSide} />
-            {/* Viewfinder cutout */}
+            {/* Viewfinder Cutout */}
             <View
               style={[
                 styles.targetFrame,
@@ -321,8 +405,8 @@ export default function ScanQRScreen({ navigation }) {
                 ]}
               />
 
-              {/* Scanning Line Animation */}
-              {showCamera && !hasScanned && (
+              {/* Scanning Laser Line */}
+              {showCamera && isCameraReady && !hasScanned && (
                 <Animated.View
                   style={[
                     styles.scanLine,
@@ -333,7 +417,7 @@ export default function ScanQRScreen({ navigation }) {
                 />
               )}
 
-              {/* Status indicator inside frame */}
+              {/* Status Indicator inside Frame */}
               {scanStatus === 'idle' && (
                 <View style={styles.frameCenterTextContainer}>
                   <Text style={styles.frameCenterText}>
@@ -400,9 +484,25 @@ export default function ScanQRScreen({ navigation }) {
         )}
 
         {scanStatus === 'scanning' && (
-          <View style={styles.scanningPromptBox}>
-            <View style={styles.scanningDot} />
-            <Text style={styles.scanningPromptText}>{t('provider.cameraActivePrompt')}</Text>
+          <View style={styles.scanningControlsContainer}>
+            <View style={styles.scanningPromptBox}>
+              <View style={[styles.scanningDot, !isCameraReady && styles.scanningDotAmber]} />
+              <Text style={styles.scanningPromptText}>
+                {isCameraReady
+                  ? t('provider.cameraActivePrompt')
+                  : t('provider.initializingCamera')}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.manualEntryBtn}
+              onPress={() => {
+                setManualError('');
+                setManualModalVisible(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.manualEntryBtnText}>⌨ Enter Code Manually</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -412,12 +512,23 @@ export default function ScanQRScreen({ navigation }) {
             <Text style={styles.errorPanelBody}>
               {errorMessage || t('provider.invalidQRDesc')}
             </Text>
-            <TouchableOpacity
-              style={styles.scanAgainButton}
-              onPress={handleStartScanning}
-            >
-              <Text style={styles.scanAgainText}>{t('provider.scanAgain')}</Text>
-            </TouchableOpacity>
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={[styles.scanAgainButton, styles.flex1]}
+                onPress={handleStartScanning}
+              >
+                <Text style={styles.scanAgainText}>{t('provider.scanAgain')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.manualOptionBtn, styles.flex1]}
+                onPress={() => {
+                  setManualError('');
+                  setManualModalVisible(true);
+                }}
+              >
+                <Text style={styles.manualOptionText}>Enter Manually</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -440,12 +551,23 @@ export default function ScanQRScreen({ navigation }) {
           <View style={styles.errorPanel}>
             <Text style={styles.errorPanelTitle}>{t('provider.authErrorTitle')}</Text>
             <Text style={styles.errorPanelBody}>{errorMessage}</Text>
-            <TouchableOpacity
-              style={styles.scanAgainButton}
-              onPress={handleStartScanning}
-            >
-              <Text style={styles.scanAgainText}>{t('provider.scanAgain')}</Text>
-            </TouchableOpacity>
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={[styles.scanAgainButton, styles.flex1]}
+                onPress={handleStartScanning}
+              >
+                <Text style={styles.scanAgainText}>{t('provider.scanAgain')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.manualOptionBtn, styles.flex1]}
+                onPress={() => {
+                  setManualError('');
+                  setManualModalVisible(true);
+                }}
+              >
+                <Text style={styles.manualOptionText}>Enter Manually</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -461,6 +583,62 @@ export default function ScanQRScreen({ navigation }) {
           {t('provider.auditNote')}
         </Text>
       </View>
+
+      {/* Manual Token Entry Modal */}
+      <Modal
+        visible={manualModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setManualModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalBackdrop}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Enter Patient Access Token</Text>
+            <Text style={styles.modalSubtitle}>
+              Type the token shown below the QR code on the patient's HealthNest card.
+            </Text>
+
+            <TextInput
+              style={styles.tokenInput}
+              value={manualTokenInput}
+              onChangeText={(text) => {
+                setManualTokenInput(text);
+                if (manualError) setManualError('');
+              }}
+              placeholder="e.g. HN-2026-XXXX-XXXX"
+              placeholderTextColor="#64748B"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+
+            {manualError ? (
+              <Text style={styles.modalErrorText}>{manualError}</Text>
+            ) : null}
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => {
+                  setManualModalVisible(false);
+                  setManualError('');
+                }}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalVerifyBtn}
+                onPress={handleManualSubmit}
+              >
+                <Text style={styles.modalVerifyText}>Verify Patient</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -497,6 +675,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerActionBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerActionIcon: {
+    color: '#FFFFFF',
+    fontSize: 18,
+  },
   flashButton: {
     width: 40,
     height: 40,
@@ -517,10 +712,66 @@ const styles = StyleSheet.create({
   // ── Scanner area ──────────────────────────────────────────────
   scannerWrapper: {
     flex: 1,
-    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#000000',
+  },
+  cameraContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000000',
   },
   cameraFill: {
     ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  cameraLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  cameraLoadingText: {
+    color: '#38BDF8',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  cameraErrorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0F172A',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    zIndex: 2,
+  },
+  cameraErrorIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  cameraErrorTitle: {
+    color: '#EF4444',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  cameraErrorMessage: {
+    color: '#94A3B8',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 18,
+  },
+  retryCameraBtn: {
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryCameraBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
   },
   cameraPlaceholder: {
     ...StyleSheet.absoluteFillObject,
@@ -613,7 +864,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 4,
     borderRightWidth: 4,
     borderColor: '#0284C7',
-    borderTopRightLeftRadius: 18,
+    borderTopRightRadius: 18,
   },
   cornerBottomLeft: {
     position: 'absolute',
@@ -636,6 +887,15 @@ const styles = StyleSheet.create({
     borderRightWidth: 4,
     borderColor: '#0284C7',
     borderBottomRightRadius: 18,
+  },
+  cornerSuccess: {
+    borderColor: '#22C55E',
+  },
+  cornerInvalid: {
+    borderColor: '#EF4444',
+  },
+  cornerExpired: {
+    borderColor: '#F59E0B',
   },
   scanLine: {
     position: 'absolute',
@@ -755,11 +1015,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  scanningControlsContainer: {
+    gap: 8,
+  },
   scanningPromptBox: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 6,
   },
   scanningDot: {
     width: 8,
@@ -768,10 +1031,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#22C55E',
     marginRight: 8,
   },
+  scanningDotAmber: {
+    backgroundColor: '#F59E0B',
+  },
   scanningPromptText: {
     color: '#E2E8F0',
     fontSize: 14,
     fontWeight: '500',
+  },
+  manualEntryBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  manualEntryBtnText: {
+    color: '#38BDF8',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  flex1: {
+    flex: 1,
   },
   errorPanel: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -818,6 +1105,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  manualOptionBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  manualOptionText: {
+    color: '#E2E8F0',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   successPanel: {
     backgroundColor: 'rgba(34, 197, 94, 0.12)',
     borderColor: '#22C55E',
@@ -841,5 +1141,81 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     marginTop: 14,
+  },
+
+  // ── Manual Modal ─────────────────────────────────────────────
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    color: '#94A3B8',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  tokenInput: {
+    backgroundColor: '#0F172A',
+    borderColor: '#334155',
+    borderWidth: 1,
+    borderRadius: 8,
+    color: '#F8FAFC',
+    fontSize: 15,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  modalErrorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    backgroundColor: '#334155',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    color: '#CBD5E1',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalVerifyBtn: {
+    flex: 1,
+    backgroundColor: '#0284C7',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalVerifyText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
