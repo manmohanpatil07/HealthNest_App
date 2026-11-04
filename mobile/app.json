@@ -50,8 +50,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "ead0ebac-0ccc-4a6d-8e7a-dd3f5355fd14"
+        "projectId": "7630c7a7-6f21-4723-94fc-352cff5d36f0"
       }
-    }
+    },
+    "owner": "manmohanpatil07"
   }
 }
