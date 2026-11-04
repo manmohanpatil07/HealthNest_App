@@ -3,6 +3,9 @@ node_modules/
 .pnp
 .pnp.js
 
+#uploded documents 
+uploads/
+
 # Testing
 coverage/
 
